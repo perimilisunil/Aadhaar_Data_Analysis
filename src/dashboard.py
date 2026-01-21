@@ -59,13 +59,14 @@ def load_data():
     
     # 1. LOAD PRIMARY AUDIT DATA
     audit_path = os.path.join(project_root, "output", "final_audit_report.parquet")
-    if not os.path.exists(audit_path): return None
+    if not os.path.exists(audit_path):
+        return None
     df = pd.read_parquet(audit_path)
 
-    fcols = data.select_dtypes('float').columns
-    icols = data.select_dtypes('integer').columns
-    data[fcols] = data[fcols].apply(pd.to_numeric, downcast='float')
-    data[icols] = data[icols].apply(pd.to_numeric, downcast='integer')
+    fcols = df.select_dtypes('float').columns
+    icols = df.select_dtypes('integer').columns
+    df[fcols] = df[fcols].apply(pd.to_numeric, downcast='float')
+    df[icols] = df[icols].apply(pd.to_numeric, downcast='integer')
     # 2. LOAD MASTER REFERENCE (The Rescue File)
     # Expected columns: pincode, district, statename
     master_path = os.path.join(project_root, "datasets", "pincode_master_clean.csv")
