@@ -61,7 +61,7 @@ def load_data():
     audit_path = os.path.join(project_root, "output", "final_audit_report.parquet")
     if not os.path.exists(audit_path): return None
     df = pd.read_parquet(audit_path)
-    # --- MEMORY SQUEEZER: Downcast numbers to save RAM---
+
     fcols = data.select_dtypes('float').columns
     icols = data.select_dtypes('integer').columns
     data[fcols] = data[fcols].apply(pd.to_numeric, downcast='float')
