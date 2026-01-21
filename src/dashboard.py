@@ -89,10 +89,14 @@ def load_data():
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     
     return df
+df = load_data()
 # --- 3. SIDEBAR ---
+if df is not None:
     with st.sidebar:
-        # Ensure view_df is initialized so warnings stop
-        view_df = df.copy() 
+# Ensure view_df is initialized so warnings stop
+view_df = df.copy()
+else:
+st.error("Dataset not found. Check your file paths.")
 if 'pincode_query' not in st.session_state:
     st.session_state.pincode_query = ""
 
