@@ -63,9 +63,9 @@ def load_data():
     df = pd.read_parquet(audit_path)
     # --- MEMORY SQUEEZER: Downcast numbers to save RAM---
     fcols = data.select_dtypes('float').columns
-        icols = data.select_dtypes('integer').columns
-        data[fcols] = data[fcols].apply(pd.to_numeric, downcast='float')
-        data[icols] = data[icols].apply(pd.to_numeric, downcast='integer')
+    icols = data.select_dtypes('integer').columns
+    data[fcols] = data[fcols].apply(pd.to_numeric, downcast='float')
+    data[icols] = data[icols].apply(pd.to_numeric, downcast='integer')
     # 2. LOAD MASTER REFERENCE (The Rescue File)
     # Expected columns: pincode, district, statename
     master_path = os.path.join(project_root, "datasets", "pincode_master_clean.csv")
