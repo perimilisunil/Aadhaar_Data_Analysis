@@ -96,7 +96,7 @@ if df is not None:
         # Ensure view_df is initialized so warnings stop
         view_df = df.copy()
 else:
-st.error("Dataset not found. Check your file paths.")
+    st.error("Dataset not found. Check your file paths.")
 if 'pincode_query' not in st.session_state:
     st.session_state.pincode_query = ""
 
