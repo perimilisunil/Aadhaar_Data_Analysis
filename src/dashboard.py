@@ -58,9 +58,9 @@ def load_data():
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
     # 1. LOAD PRIMARY AUDIT DATA
-    audit_path = os.path.join(project_root, "output", "final_audit_report.csv")
+    audit_path = os.path.join(project_root, "output", "final_audit_report.parquet")
     if not os.path.exists(audit_path): return None
-    df = pd.read_csv(audit_path)
+    df = pd.read_parquet(audit_path)
     
     # 2. LOAD MASTER REFERENCE (The Rescue File)
     # Expected columns: pincode, district, statename
