@@ -60,10 +60,6 @@ def load_data():
     
     if not os.path.exists(audit_path): 
         return None
-    
-    # 1. LOAD MINIMAL COLUMNS
-    cols = ['date', 'state', 'district', 'pincode', 'integrity_score', 'primary_risk_driver', 'service_delivery_rate']
-    df = pd.read_parquet(audit_path, columns=cols)
 
     # 2. THE "HACKATHON SURVIVAL" SAMPLING
     high_risk = df[df['integrity_score'] > 5]
