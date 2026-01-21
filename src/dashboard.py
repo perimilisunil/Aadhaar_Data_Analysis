@@ -56,70 +56,29 @@ root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 @st.cache_data
 def load_data():
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
-    # 1. LOAD PRIMARY AUDIT DATA
     audit_path = os.path.join(project_root, "output", "final_audit_report.parquet")
-    if not os.path.exists(audit_path):
+    
+    if not os.path.exists(audit_path): 
         return None
-    df = pd.read_parquet(audit_path)
+    
+    # 1. LOAD MINIMAL COLUMNS
+    cols = ['date', 'state', 'district', 'pincode', 'integrity_score', 'primary_risk_driver', 'service_delivery_rate']
+    df = pd.read_parquet(audit_path, columns=cols)
 
-    fcols = df.select_dtypes('float').columns
-    icols = df.select_dtypes('integer').columns
-    df[fcols] = df[fcols].apply(pd.to_numeric, downcast='float')
-    df[icols] = df[icols].apply(pd.to_numeric, downcast='integer')
-    # 2. LOAD MASTER REFERENCE (The Rescue File)
-    # Expected columns: pincode, district, statename
-    master_path = os.path.join(project_root, "datasets", "pincode_master_clean.csv")
-    state_lookup, dist_lookup = {}, {}
+    # 2. THE "HACKATHON SURVIVAL" SAMPLING
+    high_risk = df[df['integrity_score'] > 5]
+    safe_data = df[df['integrity_score'] <= 5].sample(frac=0.2, random_state=42)
+    df = pd.concat([high_risk, safe_data])
+
+    # 3. FAST MEMORY SQUEEZE
+    df['integrity_score'] = df['integrity_score'].astype('float32')
+    df['service_delivery_rate'] = df['service_delivery_rate'].astype('float32')
     
-    if os.path.exists(master_path):
-        m_df = pd.read_csv(master_path)
-        m_df['pincode_str'] = m_df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
-        state_lookup = m_df.set_index('pincode_str')['statename'].to_dict()
-        dist_lookup = m_df.set_index('pincode_str')['district'].to_dict()
-    
-    # 3. NORMALIZE AUDIT DATA
+    # 4. QUICK CLEANUP
+    df['state'] = df['state'].fillna('OTHER').astype(str).str.upper()
     df['pincode_str'] = df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
-    
-    for col in ['state', 'district']:
-        df[col] = df[col].astype(str).str.upper().str.strip()
-
-    # 4. THE MASTER RESCUE (Mapping Unknowns to Reality)
-    invalid_tags = ['UNKNOWN', 'NAN', 'NONE', '0', 'NULL', '', 'UNDEFINED', 'UNCATEGORIZED']
-    
-    # If state is unknown, try to get it from the Master lookup
-    df['state'] = np.where(
-        df['state'].isin(invalid_tags), 
-        df['pincode_str'].map(state_lookup), 
-        df['state']
-    )
-    
-    # If district is unknown, try to get it from the Master lookup
-    df['district'] = np.where(
-        df['district'].isin(invalid_tags), 
-        df['pincode_str'].map(dist_lookup), 
-        df['district']
-    )
-
-    # 5. FINAL CLEANUP 
-    # Standardize names one last time to fix fragmentation
-    fragment_map = {'SPSR NELLORE': 'S.P.S. NELLORE', 'NELLORE': 'S.P.S. NELLORE', 'GURGAON': 'GURUGRAM'}
-    df['district'] = df['district'].replace(fragment_map)
-    df['state'] = df['state'].replace({'TAMILNADU': 'TAMIL NADU', 'ORISSA': 'ODISHA', 'WESTBENGAL': 'WEST BENGAL'})
-
-    # 6. FILL TRULY LOST DATA (If not in Master file either)
-    df['state'] = df['state'].fillna('OTHER/UNCATEGORIZED')
-    df['district'] = df['district'].fillna('OTHER/UNCATEGORIZED')
-
-    # 7. PINCODE INTEGRITY LOCK (PIL)
-    pil_state = df.groupby('pincode_str')['state'].agg(lambda x: x.mode()[0] if not x.empty else 'UNCATEGORIZED').to_dict()
-    pil_dist = df.groupby('pincode_str')['district'].agg(lambda x: x.mode()[0] if not x.empty else 'UNCATEGORIZED').to_dict()
-    df['state'] = df['pincode_str'].map(pil_state)
-    df['district'] = df['pincode_str'].map(pil_dist)
-    
-    # 8. ADD DASHBOARD METRICS
     df['integrity_risk_pct'] = (df['integrity_score'] * 10).clip(0, 100).round(2)
-    # Map technical keys to sidebar labels
+    
     label_map = {
         'age_18_greater': 'Adult Entry Spikes', 
         'service_delivery_rate': 'Child Biometric Lags',
@@ -130,8 +89,6 @@ def load_data():
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     
     return df
-df = load_data()
-
 # --- 3. SIDEBAR ---
 if df is not None:
     with st.sidebar:
