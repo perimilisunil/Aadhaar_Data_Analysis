@@ -1,4 +1,9 @@
+.gradle/
 venv/
 __pycache__/
+*.csv
 datasets/
 output/*.csv
+.DS_Store
+.vscode/
+.idea/
