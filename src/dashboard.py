@@ -70,18 +70,15 @@ def safe_read_parquet(path, columns=None, nrows=None):
     except Exception:
         fsize = 0
 
-    # small file -> read full or requested columns
     try:
         if fsize == 0 or fsize <= PARQUET_SIZE_THRESHOLD:
             return pd.read_parquet(path, columns=columns)
         else:
-            # attempt column-limited read
             if columns:
                 try:
                     return pd.read_parquet(path, columns=columns)
                 except Exception:
                     pass
-            # fallback to pyarrow table read (safer for large files)
             try:
                 import pyarrow.parquet as pq
                 tbl = pq.read_table(path, columns=columns)
@@ -90,7 +87,6 @@ def safe_read_parquet(path, columns=None, nrows=None):
                     return df.head(nrows)
                 return df
             except Exception:
-                # last fallback: use csv sibling if present
                 csv_path = path.replace('.parquet', '.csv')
                 if os.path.exists(csv_path):
                     return pd.read_csv(csv_path, usecols=columns, nrows=nrows)
@@ -98,6 +94,7 @@ def safe_read_parquet(path, columns=None, nrows=None):
     except Exception as e:
         raise RuntimeError(f"safe_read_parquet failed for {path} : {e}")
 
+# --- UPDATE: cached safe loader (prevents re-reading on each rerun)
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_data_safe(parquet_path, master_path=None, sample_when_large=True):
     """
@@ -122,11 +119,9 @@ def load_data_safe(parquet_path, master_path=None, sample_when_large=True):
 
     try:
         if fsize and fsize > PARQUET_SIZE_THRESHOLD and sample_when_large:
-            # try to read only required columns
             try:
                 df = safe_read_parquet(parquet_path, columns=[c for c in required_cols if c is not None], nrows=None)
             except Exception:
-                # sample rows if column-limited read fails
                 df = safe_read_parquet(parquet_path, columns=None, nrows=200000)
                 status["sampled"] = True
                 status["msg"] = "Large file: loaded sample (first 200k rows). For full analysis, precompute charts offline."
@@ -181,7 +176,6 @@ def load_data_safe(parquet_path, master_path=None, sample_when_large=True):
         df['state'] = df['pincode_str'].map(pil_state)
         df['district'] = df['pincode_str'].map(pil_dist)
     except Exception:
-        # grouping may be expensive on a sampled DF but it's cheap enough for smaller datasets
         pass
 
     # add dashboard-friendly metrics
@@ -201,6 +195,7 @@ def load_data_safe(parquet_path, master_path=None, sample_when_large=True):
     status["msg"] = status.get("msg", "Loaded data successfully")
     return df, status
 
+# --- UPDATE: caching small-view computation (already present in your code but kept & used)
 @st.cache_data(show_spinner=False)
 def compute_view_df(df, sel_state, start_date, end_date, active_drivers):
     """
@@ -238,6 +233,98 @@ def compute_view_df(df, sel_state, start_date, end_date, active_drivers):
             d['service_delivery_rate'] = 0.0
 
     return d
+
+# --- UPDATE: additional cached aggregate builders to avoid recomputing heavy groupbys on reruns
+@st.cache_data(show_spinner=False)
+def build_tree_agg(view_df):
+    if view_df is None or view_df.empty:
+        return pd.DataFrame()
+    tree_view_df = view_df[view_df['state'] != 'OTHER/UNCATEGORIZED']
+    if tree_view_df.empty:
+        return pd.DataFrame()
+    tree_agg = tree_view_df.groupby(['state', 'district']).agg({
+        'integrity_risk_pct': 'mean',
+        'risk_diagnosis': lambda x: x.mode()[0] if not x.empty else "Stable",
+        'pincode': 'count'
+    }).reset_index()
+    tree_agg = tree_agg.rename(columns={'integrity_risk_pct': 'risk', 'risk_diagnosis': 'driver', 'pincode': 'volume'})
+    return tree_agg
+
+@st.cache_data(show_spinner=False)
+def build_pulse_df(view_df):
+    if view_df is None or view_df.empty:
+        return pd.DataFrame(columns=['Month','Risk','Compliance'])
+    try:
+        pulse_raw = view_df.groupby(view_df['date'].dt.to_period('M')).agg({
+            'integrity_risk_pct': 'mean',
+            'service_delivery_rate': 'mean'
+        }).reset_index()
+        pulse_raw['Risk'] = pulse_raw['integrity_risk_pct'].clip(0,100).round(1)
+        pulse_raw['Compliance'] = pulse_raw['service_delivery_rate'].clip(0,100).round(1)
+        pulse_raw['Month'] = pulse_raw['date'].astype(str)
+        return pulse_raw[['Month','Risk','Compliance','date']]
+    except Exception:
+        return pd.DataFrame(columns=['Month','Risk','Compliance'])
+
+@st.cache_data(show_spinner=False)
+def build_heat_df(view_df):
+    if view_df is None or view_df.empty:
+        return pd.DataFrame()
+    heat_df = view_df.groupby('district').agg({
+        'age_18_greater': 'mean',
+        'service_delivery_rate': 'mean',
+        'demo_age_17_': 'mean',
+        'security_anomaly_score': 'mean'
+    }).tail(20)
+    if heat_df.empty:
+        return pd.DataFrame()
+    heat_norm = (heat_df - heat_df.min()) / (heat_df.max() - heat_df.min())
+    return heat_norm
+
+@st.cache_data(show_spinner=False)
+def build_friction_df(view_df):
+    if view_df is None or view_df.empty:
+        return pd.DataFrame()
+    friction_df = view_df.groupby(['state', 'district']).agg({
+        'integrity_risk_pct': 'mean',
+        'demo_age_17_': 'mean',
+        'age_18_greater': 'mean'
+    }).reset_index()
+    friction_df['display_name'] = friction_df['state'] + " - " + friction_df['district']
+    friction_df['Forensic_Pressure'] = friction_df['integrity_risk_pct'].clip(0, 100).round(1)
+    friction_df['Workload_Pressure'] = ((friction_df['demo_age_17_'] / (friction_df['demo_age_17_'] + friction_df['age_18_greater'] + 1)) * 100).clip(0, 100).round(1)
+    friction_df['Total_Friction'] = friction_df['Forensic_Pressure'] + friction_df['Workload_Pressure']
+    friction_top = friction_df.sort_values('Total_Friction', ascending=False).head(15)
+    return friction_top
+
+@st.cache_data(show_spinner=False)
+def build_audit_table(view_df, top_n=45):
+    if view_df is None or view_df.empty:
+        return pd.DataFrame()
+    audit_table = view_df.sort_values('integrity_risk_pct', ascending=False).head(top_n).copy()
+    action_plan = {
+        'Adult Entry Spikes': 'Enrolment Form Audit',
+        'Child Biometric Lags': 'Deploy Mobile Van',
+        'Activity Bursts': 'Operator ID Freeze',
+        'Suspicious Creation': 'Manual ID Verification'
+    }
+    audit_table['Recommended Action'] = audit_table['risk_diagnosis'].map(action_plan)
+    return audit_table
+
+@st.cache_data(show_spinner=False)
+def build_district_agg(df, district):
+    if df is None or df.empty or district is None:
+        return pd.DataFrame()
+    district_all = df[df['district'] == district].copy()
+    if district_all.empty:
+        return pd.DataFrame()
+    district_agg = district_all.groupby('pincode_str').agg({
+        'state': 'first',
+        'district': 'first',
+        'integrity_risk_pct': 'mean',
+        'risk_diagnosis': lambda x: x.mode()[0] if not x.empty else "N/A"
+    }).reset_index()
+    return district_agg
 
 # Load data safely into session_state so subsequent reruns reuse it
 if "df" not in st.session_state:
@@ -279,7 +366,16 @@ with st.sidebar:
     active_drivers = [k for k, v in risk_map.items() if v]
 
     st.markdown("---")
-    search_pin = st.text_input("Pincode Enquery: ", placeholder="Enter 6-digit PIN", key="pincode_query")
+    # --- UPDATE: Debounced PIN input using a form so typing does NOT trigger multiple reruns
+    with st.form("pin_search_form"):
+        pin_input = st.text_input("Pincode Enquery: ", placeholder="Enter 6-digit PIN", key="pin_input")
+        pin_submitted = st.form_submit_button("Search PIN")
+        if pin_submitted:
+            st.session_state['pincode_query'] = pin_input.strip()
+
+    # maintain previous PIN value if present
+    if 'pincode_query' not in st.session_state:
+        st.session_state['pincode_query'] = ""
 
     # --- Date selection
     st.markdown("---")
@@ -287,7 +383,6 @@ with st.sidebar:
     all_periods = df['date'].dt.to_period('M').dropna().unique()
     all_months = sorted(all_periods) if len(all_periods) else []
     if not all_months:
-        # fallback to current month
         this_month = pd.Timestamp.now().to_period('M')
         all_months = [this_month]
     month_labels = [m.strftime('%B %Y') for m in all_months]
@@ -321,7 +416,6 @@ with st.sidebar:
         except Exception as e:
             st.error("System Error while generating PDF. See logs.")
             st.exception(e)
-            # preserve process (don't crash app)
 
 # Convert selected labels back to actual dates for filtering
 try:
@@ -342,9 +436,9 @@ else:
 view_df = compute_view_df(df, sel_state, start_date, end_date, active_drivers)
 if view_df is None or view_df.empty:
     st.warning("No data available for the selected filters. Try selecting INDIA or expanding the date range.")
-    # still continue so UI shows structure but many charts will be empty
+    # continue so UI shows structure but charts will be empty
 
-# If user entered a pincode, locate it in the full df to keep pivot logic identical to your original app
+# If user entered a pincode, locate it in the full df to keep pivot logic identical to original app
 target_obj = None
 if st.session_state.get('pincode_query'):
     search_str = str(st.session_state['pincode_query']).strip()
@@ -425,37 +519,29 @@ with t1:
         fig_life.update_layout(height=500, margin=dict(t=50, b=0, l=0, r=0), legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5), yaxis_title="Transaction Volume", xaxis_title="")
         st.plotly_chart(fig_life, width='stretch')
     with col2:
-        pie_data = view_df['risk_diagnosis'].value_counts().reset_index()
+        pie_data = view_df['risk_diagnosis'].value_counts().reset_index() if not view_df.empty else pd.DataFrame(columns=['risk_diagnosis','count'])
         fig_pie = px.pie(pie_data, values='count', names='risk_diagnosis', hole=0.4, height=550, color_discrete_sequence=px.colors.qualitative.Pastel, title=f"Risk Profile Composition: {sel_state}")
         st.plotly_chart(fig_pie, width='stretch')
 
     # --- THE TREEMAP ---
     st.markdown('<div class="section-header">Regional Integrity Hierarchy </div>', unsafe_allow_html=True)
-    tree_view_df = view_df[view_df['state'] != 'OTHER/UNCATEGORIZED']
-    if not tree_view_df.empty:
-        tree_agg = tree_view_df.groupby(['state', 'district']).agg({'integrity_risk_pct': 'mean','risk_diagnosis': lambda x: x.mode()[0] if not x.empty else "Stable",'pincode': 'count'}).reset_index()
-        tree_agg = tree_agg.rename(columns={'integrity_risk_pct': 'risk','risk_diagnosis': 'driver','pincode': 'volume'})
+    tree_agg = build_tree_agg(view_df)
+    if not tree_agg.empty:
         color_max = tree_agg['risk'].quantile(0.95)
         if color_max < 15: color_max = 15
         fig_tree = px.treemap(tree_agg, path=[px.Constant("INDIA"), 'state', 'district'], values='volume', color='risk', color_continuous_scale='RdYlGn_r', range_color=[0, color_max], custom_data=['state', 'district', 'risk', 'driver'], height=750)
         fig_tree.update_traces(textinfo="label+value", texttemplate="<b>%{label}</b>", hovertemplate="<b>State:</b> %{customdata[0]}<br><b>District:</b> %{customdata[1]}<br><b>Risk Intensity:</b> %{customdata[2]:.2f}%<br><b>Primary Threat:</b> %{customdata[3]}<extra></extra>", insidetextfont_size=14, textposition="middle center")
         fig_tree.update_layout(margin=dict(t=30, l=10, r=10, b=10), coloraxis_colorbar=dict(title="Relative Risk %", ticksuffix="%"))
         st.plotly_chart(fig_tree,width='stretch')
+    else:
+        st.info("No treemap data available for this selection.")
 
     # --- TAB 1: LIVE TREND ANALYSIS ---
     st.markdown('<div class="section-header">Administrative Pulse: Risk & Compliance Trends</div>', unsafe_allow_html=True)
-    # Aggregate by month for the current state/selection
-    try:
-        pulse_df = view_df.groupby(view_df['date'].dt.to_period('M')).agg({'integrity_risk_pct': 'mean','service_delivery_rate': 'mean'}).reset_index()
-        pulse_df['Risk'] = pulse_df['integrity_risk_pct'].clip(0, 100).round(1)
-        pulse_df['Compliance'] = pulse_df['service_delivery_rate'].clip(0, 100).round(1)
-        pulse_df['Month'] = pulse_df['date'].astype(str)
-    except Exception:
-        pulse_df = pd.DataFrame({'Month': [], 'Risk': [], 'Compliance': []})
-
+    pulse_df = build_pulse_df(view_df)
     fig_pulse = go.Figure()
-    fig_pulse.add_trace(go.Bar(x=pulse_df['Month'], y=pulse_df['Compliance'], name='MBU Compliance % (Efficiency)', marker_color='#27AE60', opacity=0.7, text=pulse_df['Compliance'].apply(lambda x: f"{x}%") if not pulse_df.empty else [] , textposition='inside'))
-    fig_pulse.add_trace(go.Scatter(x=pulse_df['Month'], y=pulse_df['Risk'], name='Risk Intensity % (Security Threat)', mode='lines+markers', line=dict(color='#E74C3C', width=4), marker=dict(size=10, symbol='diamond')))
+    fig_pulse.add_trace(go.Bar(x=pulse_df['Month'] if not pulse_df.empty else [], y=pulse_df['Compliance'] if not pulse_df.empty else [], name='MBU Compliance % (Efficiency)', marker_color='#27AE60', opacity=0.7, text=pulse_df['Compliance'].apply(lambda x: f"{x}%") if not pulse_df.empty else [], textposition='inside'))
+    fig_pulse.add_trace(go.Scatter(x=pulse_df['Month'] if not pulse_df.empty else [], y=pulse_df['Risk'] if not pulse_df.empty else [], name='Risk Intensity % (Security Threat)', mode='lines+markers', line=dict(color='#E74C3C', width=4), marker=dict(size=10, symbol='diamond')))
     fig_pulse.update_layout(title=f"<b>Forensic Pulse: {sel_state} Operational Health</b>", xaxis_title="Audit Month", yaxis_title="Percentage (%)", yaxis_range=[0, 115], legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), template="plotly_white", height=500, hovermode="x unified")
     st.plotly_chart(fig_pulse, width='stretch')
 
@@ -473,11 +559,13 @@ with t2:
             st.image(img3_path, width='stretch', caption="Chart 03: National Integrity Hierarchy")
 
     st.markdown('<div class="section-header">Regional Forensic DNA (Live Investigative Matrix)</div>', unsafe_allow_html=True)
-    heat_df = view_df.groupby('district').agg({'age_18_greater': 'mean','service_delivery_rate': 'mean','demo_age_17_': 'mean','security_anomaly_score': 'mean'}).tail(20)
-    heat_norm = (heat_df - heat_df.min()) / (heat_df.max() - heat_df.min()) if not heat_df.empty else pd.DataFrame()
-    fig7 = px.imshow(heat_norm, labels=dict(x="Forensic Driver", y="District", color="Relative Intensity"), x=['Adult Spikes', 'Child Compliance', 'Activity Bursts', 'Fraud Index'], y=heat_norm.index, color_continuous_scale='YlOrRd', aspect="auto", title=f"<b>Chart 07: Normalized DNA Scorecard of (Fingerprinting Fraud Types) {sel_state}</b>")
-    fig7.update_traces(hovertemplate="District: %{y}<br>Driver: %{x}<br>Relative Intensity: %{z:.2f}")
-    st.plotly_chart(fig7, width='stretch')
+    heat_norm = build_heat_df(view_df)
+    if not heat_norm.empty:
+        fig7 = px.imshow(heat_norm, labels=dict(x="Forensic Driver", y="District", color="Relative Intensity"), x=['Adult Spikes', 'Child Compliance', 'Activity Bursts', 'Fraud Index'], y=heat_norm.index, color_continuous_scale='YlOrRd', aspect="auto", title=f"<b>Chart 07: Normalized DNA Scorecard of (Fingerprinting Fraud Types) {sel_state}</b>")
+        fig7.update_traces(hovertemplate="District: %{y}<br>Driver: %{x}<br>Relative Intensity: %{z:.2f}")
+        st.plotly_chart(fig7, width='stretch')
+    else:
+        st.info("No DNA heatmap data to display for this scope.")
 
     row3_col1, row3_col2 = st.columns(2)
     with row3_col1:
@@ -497,17 +585,18 @@ with t3:
         st.image(img11_path, width='stretch', caption="Chart 11: National Policy Zones")
 
     st.markdown('<div class="section-header">Regional Risk Driver Impact (Live Analysis)</div>', unsafe_allow_html=True)
-    driver_impact = view_df['risk_diagnosis'].value_counts().reset_index()
+    driver_impact = view_df['risk_diagnosis'].value_counts().reset_index() if not view_df.empty else pd.DataFrame(columns=['risk_diagnosis','count'])
     fig8 = px.bar(driver_impact, x='risk_diagnosis', y='count', color='risk_diagnosis', title=f"<b>Chart 08: Volume of Primary Threat Drivers in {sel_state} Active Scope</b>", labels={'risk_diagnosis': 'ML Diagnosis', 'count': 'Number of Impacted Records'}, color_discrete_sequence=px.colors.qualitative.Pastel)
     st.plotly_chart(fig8, width='stretch')
 
     st.markdown('<div class="section-header">Chart 10: High-Priority Forensic Audit List</div>', unsafe_allow_html=True)
     st.write("The following sites have been flagged by the Isolation Forest model for manual document verification.")
-    action_plan = {'Adult Entry Spikes': 'Enrolment Form Audit','Child Biometric Lags': 'Deploy Mobile Van','Activity Bursts': 'Operator ID Freeze','Suspicious Creation': 'Manual ID Verification'}
-    audit_table = view_df.sort_values('integrity_risk_pct', ascending=False).head(45).copy()
-    audit_table['Recommended Action'] = audit_table['risk_diagnosis'].map(action_plan)
-    st.dataframe(audit_table[['district', 'pincode', 'integrity_risk_pct', 'risk_diagnosis', 'Recommended Action']], width=900, hide_index=True)
-    st.download_button(label="Download Regional Action Plan", data=audit_table.to_csv(index=False), file_name=f"Audit_Plan_{sel_state}.csv", mime='text/csv')
+    audit_table = build_audit_table(view_df)
+    if not audit_table.empty:
+        st.dataframe(audit_table[['district', 'pincode', 'integrity_risk_pct', 'risk_diagnosis', 'Recommended Action']], width='stretch', hide_index=True)
+        st.download_button(label="Download Regional Action Plan", data=audit_table.to_csv(index=False), file_name=f"Audit_Plan_{sel_state}.csv", mime='text/csv')
+    else:
+        st.info("No audit candidates for the current selection.")
 
 # --- Tab 4: Operational Friction ---
 with t4:
@@ -521,49 +610,54 @@ with t4:
         st.image(img8_path, width='stretch')
     st.markdown('<div class="section-header">The Administrative Pressure Index: Workload vs. Security Oversight</div>', unsafe_allow_html=True)
     st.info("Forensic Narrative: This chart identifies Burnout Zones. When Maintenance Workload and Forensic Risk are both high, the system is at critical friction.")
-    friction_df = view_df.groupby(['state', 'district']).agg({'integrity_risk_pct': 'mean','demo_age_17_': 'mean','age_18_greater': 'mean'}).reset_index()
-    friction_df['display_name'] = friction_df['state'] + " - " + friction_df['district']
-    friction_df['Forensic_Pressure'] = friction_df['integrity_risk_pct'].clip(0, 100).round(1)
-    friction_df['Workload_Pressure'] = ((friction_df['demo_age_17_'] / (friction_df['demo_age_17_'] + friction_df['age_18_greater'] + 1)) * 100).clip(0, 100).round(1)
-    friction_df['Total_Friction'] = friction_df['Forensic_Pressure'] + friction_df['Workload_Pressure']
-    friction_df = friction_df.sort_values('Total_Friction', ascending=False).head(15)
-    fig_friction = go.Figure()
-    fig_friction.add_trace(go.Bar(x=friction_df['display_name'], y=friction_df['Workload_Pressure'], name='Maintenance Workload (Operator Stress)', marker_color="#197ADB", text=friction_df['Workload_Pressure'].apply(lambda x: f"{x}%"), textposition='outside', textangle=-90))
-    fig_friction.add_trace(go.Bar(x=friction_df['display_name'], y=friction_df['Forensic_Pressure'], name='Forensic Risk (Security Threat)', marker_color='#E74C3C', text=friction_df['Forensic_Pressure'].apply(lambda x: f"{x}%"), textposition='outside', textangle=-90))
-    fig_friction.update_layout(barmode='group', title="Operational Friction: Contextual District Analysis", xaxis_title="Region (State - District)", yaxis_title="Pressure Index (%)", yaxis_range=[0, 130], legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), template="plotly_white", height=650, xaxis=dict(tickangle=45, tickfont=dict(size=11)))
-    st.plotly_chart(fig_friction,width='stretch')
+    friction_top = build_friction_df(view_df)
+    if not friction_top.empty:
+        fig_friction = go.Figure()
+        fig_friction.add_trace(go.Bar(x=friction_top['display_name'], y=friction_top['Workload_Pressure'], name='Maintenance Workload (Operator Stress)', marker_color="#197ADB", text=friction_top['Workload_Pressure'].apply(lambda x: f"{x}%"), textposition='outside', textangle=-90))
+        fig_friction.add_trace(go.Bar(x=friction_top['display_name'], y=friction_top['Forensic_Pressure'], name='Forensic Risk (Security Threat)', marker_color='#E74C3C', text=friction_top['Forensic_Pressure'].apply(lambda x: f"{x}%"), textposition='outside', textangle=-90))
+        fig_friction.update_layout(barmode='group', title="Operational Friction: Contextual District Analysis", xaxis_title="Region (State - District)", yaxis_title="Pressure Index (%)", yaxis_range=[0, 130], legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), template="plotly_white", height=650, xaxis=dict(tickangle=45, tickfont=dict(size=11)))
+        st.plotly_chart(fig_friction,width='stretch')
+    else:
+        st.info("No friction data available for this scope.")
     st.success("Administrative Directive: State-Level Hotspots indicate systemic state-wide failures in balancing workload with security.")
 
 # --- Tab 5: Forensic Pivot & Drilldown ---
 with t5:
-    if search_pin and target_obj is not None:
+    if st.session_state.get('pincode_query') and target_obj is not None:
+        search_pin = st.session_state['pincode_query']
         st.markdown(f'<div class="section-header">Forensic Investigation: PIN {search_pin}</div>', unsafe_allow_html=True)
         district_all = df[df['district'] == target_obj['district']].copy()
-        safe_haven = district_all.sort_values('integrity_risk_pct', ascending=True).iloc[0]
-        if target_obj['integrity_risk_pct'] > 60:
-            st.warning(f"BREACH DETECTED: Suspend Adult Enrolment at {search_pin}. Reroute to PIN {safe_haven['pincode_str']}.")
-        district_agg = district_all.groupby('pincode_str').agg({'state': 'first','district': 'first','integrity_risk_pct': 'mean','risk_diagnosis': lambda x: x.mode()[0] if not x.empty else "N/A"}).reset_index()
-        action_map = {'Adult Entry Spikes': ' Forensic Audit: Verify 18+ Form Authenticity','Child Biometric Lags': 'Outreach: Deploy Mobile Update Van','Activity Bursts': 'Technical: Inspect Operator Software Logs','Suspicious Creation': 'Security: Manual Identity Cross-Verification'}
-        district_agg['Required Action'] = district_agg['risk_diagnosis'].map(action_map).fillna("Monitor Activity")
-        peers = district_agg.sort_values('integrity_risk_pct', ascending=False).reset_index(drop=True)
-        match_indices = peers.index[peers['pincode_str'] == search_pin].tolist()
-        if not match_indices:
-            st.error("PIN found in master but missing in district aggregation.")
+        if district_all.empty:
+            st.info("No district-level data available for this PIN.")
         else:
-            t_idx = match_indices[0]
-            start, end = max(0, t_idx - 7), min(len(peers), t_idx + 8)
-            cluster = peers.iloc[start:end].copy()
-            cluster['color_logic'] = cluster['pincode_str'].apply(lambda x: '#ef4444' if x == search_pin else "#1278DF")
-            fig_grad = px.bar(cluster.sort_values('integrity_risk_pct', ascending=True), x='integrity_risk_pct', y='pincode_str', orientation='h', text_auto='.1f', title=f"Risk Hierarchy: {target_obj['district']} Cluster (Period Average)", labels={'integrity_risk_pct': 'Average Risk %', 'pincode_str': 'PIN'})
-            fig_grad.update_traces(marker_color=cluster.sort_values('integrity_risk_pct', ascending=True)['color_logic'])
-            fig_grad.update_layout(xaxis_range=[0, 100], yaxis_type='category', height=500, template="plotly_white")
-            st.plotly_chart(fig_grad, width='stretch')
-            st.markdown("**Field Investigative Evidence**")
-            display_table = cluster[['state', 'district', 'pincode_str', 'integrity_risk_pct', 'risk_diagnosis', 'Required Action']].rename(columns={'state': 'State', 'district': 'District', 'pincode_str': 'Pincode', 'integrity_risk_pct': 'Risk Score %', 'risk_diagnosis': 'Forensic Diagnosis','Required Action': 'Required Action'})
-            def highlight_target(row):
-                is_target = str(row['Pincode']).strip() == search_pin
-                return ['background-color: #fee2e2; font-weight: bold' if is_target else '' for _ in row]
-            st.table(display_table.style.apply(highlight_target, axis=1))
-            st.download_button(label="Download Field Work-Order", data=cluster.to_csv(index=False), file_name=f"Forensic_Audit_{search_pin}.csv", mime='text/csv')
+            safe_haven = district_all.sort_values('integrity_risk_pct', ascending=True).iloc[0]
+            if target_obj['integrity_risk_pct'] > 60:
+                st.warning(f"BREACH DETECTED: Suspend Adult Enrolment at {search_pin}. Reroute to PIN {safe_haven['pincode_str']}.")
+            district_agg = build_district_agg(df, target_obj['district'])
+            if district_agg.empty:
+                st.info("No pincode aggregation available for this district.")
+            else:
+                action_map = {'Adult Entry Spikes': ' Forensic Audit: Verify 18+ Form Authenticity','Child Biometric Lags': 'Outreach: Deploy Mobile Update Van','Activity Bursts': 'Technical: Inspect Operator Software Logs','Suspicious Creation': 'Security: Manual Identity Cross-Verification'}
+                district_agg['Required Action'] = district_agg['risk_diagnosis'].map(action_map).fillna("Monitor Activity")
+                peers = district_agg.sort_values('integrity_risk_pct', ascending=False).reset_index(drop=True)
+                match_indices = peers.index[peers['pincode_str'] == search_pin].tolist()
+                if not match_indices:
+                    st.error("PIN found in master but missing in district aggregation.")
+                else:
+                    t_idx = match_indices[0]
+                    start, end = max(0, t_idx - 7), min(len(peers), t_idx + 8)
+                    cluster = peers.iloc[start:end].copy()
+                    cluster['color_logic'] = cluster['pincode_str'].apply(lambda x: '#ef4444' if x == search_pin else "#1278DF")
+                    fig_grad = px.bar(cluster.sort_values('integrity_risk_pct', ascending=True), x='integrity_risk_pct', y='pincode_str', orientation='h', text_auto='.1f', title=f"Risk Hierarchy: {target_obj['district']} Cluster (Period Average)", labels={'integrity_risk_pct': 'Average Risk %', 'pincode_str': 'PIN'})
+                    fig_grad.update_traces(marker_color=cluster.sort_values('integrity_risk_pct', ascending=True)['color_logic'])
+                    fig_grad.update_layout(xaxis_range=[0, 100], yaxis_type='category', height=500, template="plotly_white")
+                    st.plotly_chart(fig_grad, width='stretch')
+                    st.markdown("**Field Investigative Evidence**")
+                    display_table = cluster[['state', 'district', 'pincode_str', 'integrity_risk_pct', 'risk_diagnosis', 'Required Action']].rename(columns={'state': 'State', 'district': 'District', 'pincode_str': 'Pincode', 'integrity_risk_pct': 'Risk Score %', 'risk_diagnosis': 'Forensic Diagnosis','Required Action': 'Required Action'})
+                    def highlight_target(row):
+                        is_target = str(row['Pincode']).strip() == search_pin
+                        return ['background-color: #fee2e2; font-weight: bold' if is_target else '' for _ in row]
+                    st.table(display_table.style.apply(highlight_target, axis=1))
+                    st.download_button(label="Download Field Work-Order", data=cluster.to_csv(index=False), file_name=f"Forensic_Audit_{search_pin}.csv", mime='text/csv')
     else:
         st.info("National Aadhar Portal Ready. Please enter a Pincode in the sidebar.")
