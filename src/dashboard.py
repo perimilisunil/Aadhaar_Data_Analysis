@@ -128,7 +128,7 @@ def load_data():
 try:
     df = load_data()
 except Exception as e:
-    st.error*f"starting problem: {e}")
+    st.error(f"starting problem: {e}")
     st.stop()
 # --- 3. SIDEBAR ---
 if df is not None:
