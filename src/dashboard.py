@@ -423,11 +423,11 @@ with t1:
         )
 
         fig_life.update_layout(height=500, margin=dict(t=50, b=0, l=0, r=0), legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5), yaxis_title="Transaction Volume", xaxis_title="")
-        st.plotly_chart(fig_life, use_container_width=True)
+        st.plotly_chart(fig_life, width='stretch')
     with col2:
         pie_data = view_df['risk_diagnosis'].value_counts().reset_index()
         fig_pie = px.pie(pie_data, values='count', names='risk_diagnosis', hole=0.4, height=550, color_discrete_sequence=px.colors.qualitative.Pastel, title=f"Risk Profile Composition: {sel_state}")
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_pie, width='stretch')
 
     # --- THE TREEMAP ---
     st.markdown('<div class="section-header">Regional Integrity Hierarchy </div>', unsafe_allow_html=True)
@@ -440,7 +440,7 @@ with t1:
         fig_tree = px.treemap(tree_agg, path=[px.Constant("INDIA"), 'state', 'district'], values='volume', color='risk', color_continuous_scale='RdYlGn_r', range_color=[0, color_max], custom_data=['state', 'district', 'risk', 'driver'], height=750)
         fig_tree.update_traces(textinfo="label+value", texttemplate="<b>%{label}</b>", hovertemplate="<b>State:</b> %{customdata[0]}<br><b>District:</b> %{customdata[1]}<br><b>Risk Intensity:</b> %{customdata[2]:.2f}%<br><b>Primary Threat:</b> %{customdata[3]}<extra></extra>", insidetextfont_size=14, textposition="middle center")
         fig_tree.update_layout(margin=dict(t=30, l=10, r=10, b=10), coloraxis_colorbar=dict(title="Relative Risk %", ticksuffix="%"))
-        st.plotly_chart(fig_tree, use_container_width=True)
+        st.plotly_chart(fig_tree,width='stretch')
 
     # --- TAB 1: LIVE TREND ANALYSIS ---
     st.markdown('<div class="section-header">Administrative Pulse: Risk & Compliance Trends</div>', unsafe_allow_html=True)
@@ -457,7 +457,7 @@ with t1:
     fig_pulse.add_trace(go.Bar(x=pulse_df['Month'], y=pulse_df['Compliance'], name='MBU Compliance % (Efficiency)', marker_color='#27AE60', opacity=0.7, text=pulse_df['Compliance'].apply(lambda x: f"{x}%") if not pulse_df.empty else [] , textposition='inside'))
     fig_pulse.add_trace(go.Scatter(x=pulse_df['Month'], y=pulse_df['Risk'], name='Risk Intensity % (Security Threat)', mode='lines+markers', line=dict(color='#E74C3C', width=4), marker=dict(size=10, symbol='diamond')))
     fig_pulse.update_layout(title=f"<b>Forensic Pulse: {sel_state} Operational Health</b>", xaxis_title="Audit Month", yaxis_title="Percentage (%)", yaxis_range=[0, 115], legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), template="plotly_white", height=500, hovermode="x unified")
-    st.plotly_chart(fig_pulse, use_container_width=True)
+    st.plotly_chart(fig_pulse, width='stretch')
 
 # --- Tab 2: Anomaly Clustering ---
 with t2:
@@ -466,40 +466,40 @@ with t2:
     with row1_col1:
         img2_path = os.path.join(root_path, "output", "charts", "02_risk_leaderboard.png")
         if os.path.exists(img2_path):
-            st.image(img2_path, use_column_width=True, caption="Chart 02: Top 25 Priority Audit Districts")
+            st.image(img2_path, width='stretch', caption="Chart 02: Top 25 Priority Audit Districts")
     with row1_col2:
         img3_path = os.path.join(root_path, "output", "charts", "03_risk_treemap.png")
         if os.path.exists(img3_path):
-            st.image(img3_path, use_column_width=True, caption="Chart 03: National Integrity Hierarchy")
+            st.image(img3_path, width='stretch', caption="Chart 03: National Integrity Hierarchy")
 
     st.markdown('<div class="section-header">Regional Forensic DNA (Live Investigative Matrix)</div>', unsafe_allow_html=True)
     heat_df = view_df.groupby('district').agg({'age_18_greater': 'mean','service_delivery_rate': 'mean','demo_age_17_': 'mean','security_anomaly_score': 'mean'}).tail(20)
     heat_norm = (heat_df - heat_df.min()) / (heat_df.max() - heat_df.min()) if not heat_df.empty else pd.DataFrame()
     fig7 = px.imshow(heat_norm, labels=dict(x="Forensic Driver", y="District", color="Relative Intensity"), x=['Adult Spikes', 'Child Compliance', 'Activity Bursts', 'Fraud Index'], y=heat_norm.index, color_continuous_scale='YlOrRd', aspect="auto", title=f"<b>Chart 07: Normalized DNA Scorecard of (Fingerprinting Fraud Types) {sel_state}</b>")
     fig7.update_traces(hovertemplate="District: %{y}<br>Driver: %{x}<br>Relative Intensity: %{z:.2f}")
-    st.plotly_chart(fig7, use_container_width=True)
+    st.plotly_chart(fig7, width='stretch')
 
     row3_col1, row3_col2 = st.columns(2)
     with row3_col1:
         img5_path = os.path.join(root_path, "output", "ML_Anomaly_charts", "05_ml_threat_radar.png")
         if os.path.exists(img5_path):
-            st.image(img5_path, use_column_width=True, caption="Chart 05: Behavioral Signature Radar")
+            st.image(img5_path, width='stretch', caption="Chart 05: Behavioral Signature Radar")
     with row3_col2:
         img6_path = os.path.join(root_path, "output", "ML_Anomaly_charts", "06_ml_forensic_scorecard.png")
         if os.path.exists(img6_path):
-            st.image(img6_path, use_column_width=True, caption="Chart 06: Forensic Magnitude Scorecard")
+            st.image(img6_path, width='stretch', caption="Chart 06: Forensic Magnitude Scorecard")
 
 # --- Tab 3: Strategic Action ---
 with t3:
     st.markdown('<div class="section-header">Root-Cause Modelling & Strategic Resource Allocation</div>', unsafe_allow_html=True)
     img11_path = os.path.join(root_path, "output", "Deep_Analysis", "11_strategic_portfolio.png")
     if os.path.exists(img11_path):
-        st.image(img11_path, use_column_width=True, caption="Chart 11: National Policy Zones")
+        st.image(img11_path, width='stretch', caption="Chart 11: National Policy Zones")
 
     st.markdown('<div class="section-header">Regional Risk Driver Impact (Live Analysis)</div>', unsafe_allow_html=True)
     driver_impact = view_df['risk_diagnosis'].value_counts().reset_index()
     fig8 = px.bar(driver_impact, x='risk_diagnosis', y='count', color='risk_diagnosis', title=f"<b>Chart 08: Volume of Primary Threat Drivers in {sel_state} Active Scope</b>", labels={'risk_diagnosis': 'ML Diagnosis', 'count': 'Number of Impacted Records'}, color_discrete_sequence=px.colors.qualitative.Pastel)
-    st.plotly_chart(fig8, use_container_width=True)
+    st.plotly_chart(fig8, width='stretch')
 
     st.markdown('<div class="section-header">Chart 10: High-Priority Forensic Audit List</div>', unsafe_allow_html=True)
     st.write("The following sites have been flagged by the Isolation Forest model for manual document verification.")
@@ -515,10 +515,10 @@ with t4:
     row1_col1, row1_col2 = st.columns(2)
     img9_path = os.path.join(root_path, "output", "Deep_Analysis", "09_state_anomaly_concentration.png")
     if os.path.exists(img9_path):
-        st.image(img9_path, use_column_width=True)
+        st.image(img9_path, width='stretch')
     img8_path = os.path.join(root_path, "output", "Deep_Analysis", "08_global_feature_importance.png")
     if os.path.exists(img8_path):
-        st.image(img8_path, use_column_width=True)
+        st.image(img8_path, width='stretch')
     st.markdown('<div class="section-header">The Administrative Pressure Index: Workload vs. Security Oversight</div>', unsafe_allow_html=True)
     st.info("Forensic Narrative: This chart identifies Burnout Zones. When Maintenance Workload and Forensic Risk are both high, the system is at critical friction.")
     friction_df = view_df.groupby(['state', 'district']).agg({'integrity_risk_pct': 'mean','demo_age_17_': 'mean','age_18_greater': 'mean'}).reset_index()
@@ -531,7 +531,7 @@ with t4:
     fig_friction.add_trace(go.Bar(x=friction_df['display_name'], y=friction_df['Workload_Pressure'], name='Maintenance Workload (Operator Stress)', marker_color="#197ADB", text=friction_df['Workload_Pressure'].apply(lambda x: f"{x}%"), textposition='outside', textangle=-90))
     fig_friction.add_trace(go.Bar(x=friction_df['display_name'], y=friction_df['Forensic_Pressure'], name='Forensic Risk (Security Threat)', marker_color='#E74C3C', text=friction_df['Forensic_Pressure'].apply(lambda x: f"{x}%"), textposition='outside', textangle=-90))
     fig_friction.update_layout(barmode='group', title="Operational Friction: Contextual District Analysis", xaxis_title="Region (State - District)", yaxis_title="Pressure Index (%)", yaxis_range=[0, 130], legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), template="plotly_white", height=650, xaxis=dict(tickangle=45, tickfont=dict(size=11)))
-    st.plotly_chart(fig_friction, use_container_width=True)
+    st.plotly_chart(fig_friction,width='stretch')
     st.success("Administrative Directive: State-Level Hotspots indicate systemic state-wide failures in balancing workload with security.")
 
 # --- Tab 5: Forensic Pivot & Drilldown ---
@@ -557,7 +557,7 @@ with t5:
             fig_grad = px.bar(cluster.sort_values('integrity_risk_pct', ascending=True), x='integrity_risk_pct', y='pincode_str', orientation='h', text_auto='.1f', title=f"Risk Hierarchy: {target_obj['district']} Cluster (Period Average)", labels={'integrity_risk_pct': 'Average Risk %', 'pincode_str': 'PIN'})
             fig_grad.update_traces(marker_color=cluster.sort_values('integrity_risk_pct', ascending=True)['color_logic'])
             fig_grad.update_layout(xaxis_range=[0, 100], yaxis_type='category', height=500, template="plotly_white")
-            st.plotly_chart(fig_grad, use_container_width=True)
+            st.plotly_chart(fig_grad, width='stretch')
             st.markdown("**Field Investigative Evidence**")
             display_table = cluster[['state', 'district', 'pincode_str', 'integrity_risk_pct', 'risk_diagnosis', 'Required Action']].rename(columns={'state': 'State', 'district': 'District', 'pincode_str': 'Pincode', 'integrity_risk_pct': 'Risk Score %', 'risk_diagnosis': 'Forensic Diagnosis','Required Action': 'Required Action'})
             def highlight_target(row):
