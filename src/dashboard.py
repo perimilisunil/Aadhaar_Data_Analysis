@@ -125,7 +125,11 @@ def load_data():
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     
     return df
-df = load_data()
+try:
+    df = load_data()
+except Exception as e:
+    st.error*f"starting problem: {e}")
+    st.stop()
 # --- 3. SIDEBAR ---
 if df is not None:
     with st.sidebar:
@@ -246,12 +250,17 @@ if df is not None:
     total_unique_pins = df['pincode'].nunique() 
     # --- 6-KPI COMMAND ROW ---
     k1, k2, k3, k4, k5, k6 = st.columns(6)
-    with k1: st.metric("Audit Scope", sel_state if sel_state != "NATIONAL OVERVIEW" else "INDIA")
-    with k2: st.metric("Unique Pincodes", f"{view_df['pincode'].nunique():,}")
-    with k3: st.metric("High Risk Sites", len(view_df[view_df['integrity_risk_pct'] > 75]))
-    with k4: st.metric("Integrity", f"{100 - view_df['integrity_risk_pct'].mean():.1f}%")
+    with k1:
+        st.metric("Audit Scope", sel_state if sel_state != "NATIONAL OVERVIEW" else "INDIA")
+    with k2:
+        st.metric("Unique Pincodes", f"{view_df['pincode'].nunique():,}")
+    with k3:
+        st.metric("High Risk Sites", len(view_df[view_df['integrity_risk_pct'] > 75]))
+    with k4:
+        st.metric("Integrity", f"{100 - view_df['integrity_risk_pct'].mean():.1f}%")
     child_upd = view_df['service_delivery_rate'].mean()
-    with k5: st.metric("Child Biometric Updates", f"{view_df["service_delivery_rate"].mean():.1f}%")
+    with k5:
+        st.metric("Child Biometric Updates", f"{view_df['service_delivery_rate'].mean():.1f}%")
     
     with k6: st.metric("Records Analyzed", f"{len(view_df):,}") 
     st.markdown("---")
