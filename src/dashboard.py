@@ -125,11 +125,17 @@ def load_data():
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     
     return df
-try:
-    df = load_data()
-except Exception as e:
-    st.error(f"starting problem: {e}")
+if "df" not in st.session_state:
+    try:
+        df = load_data()
+    except Exception as e:
+        st.error(f"starting problem: {e}")
+        st.stop()
+df = st.session_state.df
+if df is None or df.empty:
+    st.warning("Data could not load")
     st.stop()
+    
 # --- 3. SIDEBAR ---
 if df is not None:
     with st.sidebar:
