@@ -125,9 +125,10 @@ def load_data():
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     
     return df
+    
 if "df" not in st.session_state:
     try:
-        df = load_data()
+        st.session_state.df = load_data()
     except Exception as e:
         st.error(f"starting problem: {e}")
         st.stop()
