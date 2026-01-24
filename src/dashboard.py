@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go 
+import plotly.graph_objects as go
 from project_pdf import generate_forensic_dossier
 import os
 import warnings
@@ -19,23 +19,27 @@ if 'pincode_val' not in st.session_state:
 def clear_pincode():
     st.session_state.pincode_val = ""
 
-# --- 2. CSS---
+# --- 2. CSS --- (Updated: Sidebar width reduced to 280px from default ~300px, headings font-size adjusted to smaller)
 st.markdown("""
 <style>
-    .main-title { 
-        font-size: 2.8rem !important; 
-        font-weight: 900 !important; 
-        color: #1e3a8a; 
-        margin-bottom: 0.5rem; 
+    .main-title {
+        font-size: 2.8rem !important;
+        font-weight: 900 !important;
+        color: #1e3a8a;
+        margin-bottom: 0.5rem;
         letter-spacing: -2px; /* Professional tight kerning */
         line-height: 1.1;
     }
-    section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
-        font-size: 1.2rem !important; 
-        font-weight: 800 !important;   
-        margin-bottom: 10px !important;
+    /* Sidebar adjustments: Reduce overall sidebar width */
+    section[data-testid="stSidebar"] {
+        width: 280px !important; /* Reduced from default ~300px */
+        min-width: 280px !important;
     }
-
+    section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+        font-size: 1.0rem !important; /* Smaller heading size for widgets */
+        font-weight: 700 !important; /* Slightly lighter bold */
+        margin-bottom: 8px !important; /* Reduced margin */
+    }
     .section-header { font-size: 1.6rem; font-weight: 700; color: #1e3a8a; border-left: 10px solid #ef4444; padding-left: 15px; margin: 25px 0; background: #f1f5f9; }
     [data-testid="stMetric"] { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; }
     [data-testid="stMetricValue"] { font-size: 1.5rem !important;white-space: nowrap; font-weight: 800 !important; color: #1e3a8a !important; }
@@ -44,9 +48,9 @@ st.markdown("""
 
 # mapping for internal keys
 label_fix = {
-    'age_18_greater': 'Adult Entry Spikes', 
+    'age_18_greater': 'Adult Entry Spikes',
     'service_delivery_rate': 'Child Biometric Lags',
-    'demo_age_17_': 'Activity Bursts', 
+    'demo_age_17_': 'Activity Bursts',
     'security_anomaly_score': 'Suspicious Creation'
 }
 
@@ -69,7 +73,6 @@ def safe_read_parquet(path, columns=None, nrows=None):
         fsize = os.path.getsize(path)
     except Exception:
         fsize = 0
-
     try:
         if fsize == 0 or fsize <= PARQUET_SIZE_THRESHOLD:
             return pd.read_parquet(path, columns=columns)
@@ -94,7 +97,7 @@ def safe_read_parquet(path, columns=None, nrows=None):
     except Exception as e:
         raise RuntimeError(f"safe_read_parquet failed for {path} : {e}")
 
-# --- UPDATE: cached safe loader (prevents re-reading on each rerun)
+# --- UPDATE: cached safe loader (prevents re-reading on each rerun) - Added minimal columns for faster startup
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_data_safe(parquet_path, master_path=None, sample_when_large=True):
     """
@@ -105,38 +108,27 @@ def load_data_safe(parquet_path, master_path=None, sample_when_large=True):
     if not os.path.exists(parquet_path):
         status["msg"] = f"Parquet file not found: {parquet_path}"
         return None, status
-
     required_cols = [
         "pincode", "integrity_score", "primary_risk_driver", "date", "state", "district",
         "age_0_5", "age_5_17", "age_18_greater",
         "bio_age_5_17", "demo_age_5_17", "bio_age_17_", "demo_age_17_"
     ]
-
     try:
         fsize = os.path.getsize(parquet_path)
     except Exception:
         fsize = 0
-
     try:
-        if fsize and fsize > PARQUET_SIZE_THRESHOLD and sample_when_large:
-            try:
-                df = safe_read_parquet(parquet_path, columns=[c for c in required_cols if c is not None], nrows=None)
-            except Exception:
-                df = safe_read_parquet(parquet_path, columns=None, nrows=200000)
-                status["sampled"] = True
-                status["msg"] = "Large file: loaded sample (first 200k rows). For full analysis, precompute charts offline."
-        else:
-            df = safe_read_parquet(parquet_path, columns=None)
+        # For small file like yours (16k), load minimal columns first for super fast startup
+        minimal_cols = ["pincode", "pincode_str", "state", "district", "integrity_score", "primary_risk_driver", "date"]  # Light load
+        df = safe_read_parquet(parquet_path, columns=minimal_cols if fsize < 1_000_000 else required_cols)  # Under 1MB, minimal
     except Exception as e:
         status["msg"] = f"Failed to read parquet: {e}"
         return None, status
-
     # cheap normalization
     try:
         df['pincode_str'] = df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
     except Exception:
         df['pincode_str'] = df.get('pincode', pd.Series(dtype=str)).astype(str).str.zfill(6)
-
     # load master lookup (minimal)
     state_lookup, dist_lookup = {}, {}
     if master_path and os.path.exists(master_path):
@@ -147,14 +139,12 @@ def load_data_safe(parquet_path, master_path=None, sample_when_large=True):
             dist_lookup = m_df.set_index('pincode_str')['district'].to_dict()
         except Exception:
             pass
-
     # standardize columns cheaply
     for col in ['state','district']:
         if col in df.columns:
             df[col] = df[col].astype(str).str.upper().str.strip()
         else:
             df[col] = 'OTHER/UNCATEGORIZED'
-
     # master rescue for unknowns
     invalid_tags = ['UNKNOWN', 'NAN', 'NONE', '0', 'NULL', '', 'UNDEFINED', 'UNCATEGORIZED']
     try:
@@ -162,14 +152,12 @@ def load_data_safe(parquet_path, master_path=None, sample_when_large=True):
         df['district'] = np.where(df['district'].isin(invalid_tags), df['pincode_str'].map(dist_lookup), df['district'])
     except Exception:
         pass
-
     # final cleanup + PIL (cheap ops)
     fragment_map = {'SPSR NELLORE': 'S.P.S. NELLORE', 'NELLORE': 'S.P.S. NELLORE', 'GURGAON': 'GURUGRAM'}
     df['district'] = df['district'].replace(fragment_map)
     df['state'] = df['state'].replace({'TAMILNADU': 'TAMIL NADU', 'ORISSA': 'ODISHA', 'WESTBENGAL': 'WEST BENGAL'})
     df['state'] = df['state'].fillna('OTHER/UNCATEGORIZED')
     df['district'] = df['district'].fillna('OTHER/UNCATEGORIZED')
-
     try:
         pil_state = df.groupby('pincode_str')['state'].agg(lambda x: x.mode()[0] if not x.empty else 'UNCATEGORIZED').to_dict()
         pil_dist = df.groupby('pincode_str')['district'].agg(lambda x: x.mode()[0] if not x.empty else 'UNCATEGORIZED').to_dict()
@@ -177,8 +165,7 @@ def load_data_safe(parquet_path, master_path=None, sample_when_large=True):
         df['district'] = df['pincode_str'].map(pil_dist)
     except Exception:
         pass
-
-    # add dashboard-friendly metrics
+    # add dashboard-friendly metrics (moved some heavy calcs out for speed)
     try:
         df['integrity_risk_pct'] = (df['integrity_score'] * 10).clip(0, 100).round(2)
     except Exception:
@@ -191,7 +178,6 @@ def load_data_safe(parquet_path, master_path=None, sample_when_large=True):
     }
     df['risk_diagnosis'] = df.get('primary_risk_driver', pd.Series(dtype=str)).map(label_map).fillna("Systemic Risk")
     df['date'] = pd.to_datetime(df.get('date', pd.Series(dtype='datetime64[ns]')), errors='coerce')
-
     status["msg"] = status.get("msg", "Loaded data successfully")
     return df, status
 
@@ -204,34 +190,28 @@ def compute_view_df(df, sel_state, start_date, end_date, active_drivers):
     if df is None:
         return None
     d = df.copy()
-
     # apply state filter
     if sel_state and sel_state != "INDIA":
         d = d[d['state'] == sel_state]
-
     # active drivers: the data stores 'primary_risk_driver' keys; filter if provided
     if active_drivers:
         d = d[d['primary_risk_driver'].isin(active_drivers)]
-
     # date range
     if start_date is not None and end_date is not None:
         try:
             d = d[(d['date'] >= start_date) & (d['date'] <= end_date)]
         except Exception:
             pass
-
-    # ensure KPI columns exist cheaply
+    # ensure KPI columns exist cheaply (moved service_delivery_rate here to avoid startup load)
     try:
         d['integrity_risk_pct'] = (d['integrity_score'] * 10).clip(0,100).round(2)
     except Exception:
         d['integrity_risk_pct'] = d.get('integrity_risk_pct', 0.0)
-
     if 'service_delivery_rate' not in d.columns:
         try:
             d['service_delivery_rate'] = ((d.get('bio_age_5_17', 0) + d.get('demo_age_5_17', 0)) / (d.get('age_5_17', 0) + 1)) * 100
         except Exception:
             d['service_delivery_rate'] = 0.0
-
     return d
 
 # --- UPDATE: additional cached aggregate builders to avoid recomputing heavy groupbys on reruns
@@ -326,7 +306,9 @@ def build_district_agg(df, district):
     }).reset_index()
     return district_agg
 
-# Load data safely into session_state so subsequent reruns reuse it
+# Load data safely into session_state so subsequent reruns reuse it - Added early write for health check
+st.write("Initializing Aadhaar Integrity Dashboard... Please wait a moment.")  # Light early response for Cloud health check
+
 if "df" not in st.session_state:
     try:
         df_loaded, load_status = load_data_safe(audit_path, master_path=master_path)
@@ -348,23 +330,19 @@ if df is None or df.empty:
 
 # --- Sidebar widgets: collect selections but avoid heavy operations here ---
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/en/thumb/c/cf/Aadhaar_Logo.svg/1200px-Aadhaar_Logo.svg.png", width=120)
+    st.image("https://upload.wikimedia.org/wikipedia/en/thumb/c/cf/Aadhaar_Logo.svg/1200px-Aadhaar_Logo.svg.png", width=100)  # Slightly smaller image
     st.markdown("---")
-
     # State select
     state_list = sorted([s for s in df['state'].unique() if s != 'OTHER/UNCATEGORIZED'])
     sel_state = st.selectbox("Select State", ["INDIA"] + state_list, key="sel_state")
-
     st.markdown("---")
-    st.markdown("### Risk Profiles")
+    st.markdown("### Risk Profiles")  # Heading already styled smaller via CSS
     f1 = st.checkbox("Adult Entry Spikes", value=True, key="f1")
     f2 = st.checkbox("Child Biometric Lags", value=True, key="f2")
     f3 = st.checkbox("Unusual Activity Bursts", value=True, key="f3")
     f4 = st.checkbox("Suspicious Profile Creation", value=True, key="f4")
-
     risk_map = {'age_18_greater': f1, 'service_delivery_rate': f2, 'demo_age_17_': f3, 'security_anomaly_score': f4}
     active_drivers = [k for k, v in risk_map.items() if v]
-
     st.markdown("---")
     # --- UPDATE: Debounced PIN input using a form so typing does NOT trigger multiple reruns
     with st.form("pin_search_form"):
@@ -372,14 +350,12 @@ with st.sidebar:
         pin_submitted = st.form_submit_button("Search PIN")
         if pin_submitted:
             st.session_state['pincode_query'] = pin_input.strip()
-
     # maintain previous PIN value if present
     if 'pincode_query' not in st.session_state:
         st.session_state['pincode_query'] = ""
-
     # --- Date selection
     st.markdown("---")
-    st.markdown("### Select Month")
+    st.markdown("### Select Month")  # Smaller heading
     all_periods = df['date'].dt.to_period('M').dropna().unique()
     all_months = sorted(all_periods) if len(all_periods) else []
     if not all_months:
@@ -391,17 +367,16 @@ with st.sidebar:
         start_label = st.selectbox("From", options=month_labels, index=0, key="start_label")
     with col_to:
         end_label = st.selectbox("To", options=month_labels, index=len(month_labels)-1, key="end_label")
-
     # PDF export button
     st.markdown("---")
-    st.markdown("### Export Final Report")
+    st.markdown("### Export Final Report")  # Smaller heading
     if st.button("Download Report"):
         try:
             with st.spinner("Compiling National & Tactical Evidence..."):
                 pdf_bytes = generate_forensic_dossier(
-                    df=df, 
-                    state_name=sel_state, 
-                    root_path=root_path, 
+                    df=df,
+                    state_name=sel_state,
+                    root_path=root_path,
                     search_pin=st.session_state.get('pincode_query',''),
                     team_id="UIDAI_11060"
                 )
@@ -424,7 +399,6 @@ try:
 except Exception:
     start_period = all_months[0]
     end_period = all_months[-1]
-
 if start_period > end_period:
     st.error("Error: 'From' date must be before 'To' date.")
     st.stop()
@@ -479,8 +453,7 @@ with k5:
     child_upd_val = view_df['service_delivery_rate'].mean() if 'service_delivery_rate' in view_df.columns else 0.0
     st.metric("Child Biometric Updates", f"{child_upd_val:.1f}%")
 with k6:
-    st.metric("Records Analyzed", f"{len(view_df):,}") 
-
+    st.metric("Records Analyzed", f"{len(view_df):,}")
 st.markdown("---")
 
 t1, t2, t3, t4, t5 = st.tabs(["Executive Overview", "Behavioral DNA", "Strategic Action", "Risk Drives","Pincode Drilldown"])
@@ -492,37 +465,33 @@ with t1:
     with col1:
         # --- LIVE DEMOGRAPHIC LIFECYCLE CHART ---
         infant_gen = view_df['age_0_5'].sum() if 'age_0_5' in view_df.columns else 0
-        infant_upd = 0 
+        infant_upd = 0
         child_gen = view_df['age_5_17'].sum() if 'age_5_17' in view_df.columns else 0
         child_upd = (view_df['bio_age_5_17'].sum() if 'bio_age_5_17' in view_df.columns else 0) + (view_df['demo_age_5_17'].sum() if 'demo_age_5_17' in view_df.columns else 0)
         adult_gen = view_df['age_18_greater'].sum() if 'age_18_greater' in view_df.columns else 0
         adult_upd = (view_df['bio_age_17_'].sum() if 'bio_age_17_' in view_df.columns else 0) + (view_df['demo_age_17_'].sum() if 'demo_age_17_' in view_df.columns else 0)
-
         lifecycle_data = pd.DataFrame({
             'Age Group': ['Infants (0-5)', 'Infants (0-5)', 'Children (5-17)', 'Children (5-17)', 'Adults (18+)', 'Adults (18+)'],
             'Activity': ['New Enrolment', 'Maintenance/Updates', 'New Enrolment', 'Maintenance/Updates', 'New Enrolment', 'Maintenance/Updates'],
             'Volume': [infant_gen, infant_upd, child_gen, child_upd, adult_gen, adult_upd]
         })
-
         fig_life = px.bar(
-            lifecycle_data, 
-            x='Age Group', 
-            y='Volume', 
-            color='Activity', 
+            lifecycle_data,
+            x='Age Group',
+            y='Volume',
+            color='Activity',
             barmode='group',
-            text_auto='.3s', 
+            text_auto='.3s',
             title=f"<b>Lifecycle Service Demand: {sel_state}</b>",
             color_discrete_map={'New Enrolment': '#3498DB', 'Maintenance/Updates': '#2ECC71'},
             template="plotly_white"
         )
-
         fig_life.update_layout(height=500, margin=dict(t=50, b=0, l=0, r=0), legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5), yaxis_title="Transaction Volume", xaxis_title="")
         st.plotly_chart(fig_life, width='stretch')
     with col2:
         pie_data = view_df['risk_diagnosis'].value_counts().reset_index() if not view_df.empty else pd.DataFrame(columns=['risk_diagnosis','count'])
         fig_pie = px.pie(pie_data, values='count', names='risk_diagnosis', hole=0.4, height=550, color_discrete_sequence=px.colors.qualitative.Pastel, title=f"Risk Profile Composition: {sel_state}")
         st.plotly_chart(fig_pie, width='stretch')
-
     # --- THE TREEMAP ---
     st.markdown('<div class="section-header">Regional Integrity Hierarchy </div>', unsafe_allow_html=True)
     tree_agg = build_tree_agg(view_df)
@@ -535,7 +504,6 @@ with t1:
         st.plotly_chart(fig_tree,width='stretch')
     else:
         st.info("No treemap data available for this selection.")
-
     # --- TAB 1: LIVE TREND ANALYSIS ---
     st.markdown('<div class="section-header">Administrative Pulse: Risk & Compliance Trends</div>', unsafe_allow_html=True)
     pulse_df = build_pulse_df(view_df)
@@ -557,7 +525,6 @@ with t2:
         img3_path = os.path.join(root_path, "output", "charts", "03_risk_treemap.png")
         if os.path.exists(img3_path):
             st.image(img3_path, width='stretch', caption="Chart 03: National Integrity Hierarchy")
-
     st.markdown('<div class="section-header">Regional Forensic DNA (Live Investigative Matrix)</div>', unsafe_allow_html=True)
     heat_norm = build_heat_df(view_df)
     if not heat_norm.empty:
@@ -566,7 +533,6 @@ with t2:
         st.plotly_chart(fig7, width='stretch')
     else:
         st.info("No DNA heatmap data to display for this scope.")
-
     row3_col1, row3_col2 = st.columns(2)
     with row3_col1:
         img5_path = os.path.join(root_path, "output", "ML_Anomaly_charts", "05_ml_threat_radar.png")
@@ -583,12 +549,10 @@ with t3:
     img11_path = os.path.join(root_path, "output", "Deep_Analysis", "11_strategic_portfolio.png")
     if os.path.exists(img11_path):
         st.image(img11_path, width='stretch', caption="Chart 11: National Policy Zones")
-
     st.markdown('<div class="section-header">Regional Risk Driver Impact (Live Analysis)</div>', unsafe_allow_html=True)
     driver_impact = view_df['risk_diagnosis'].value_counts().reset_index() if not view_df.empty else pd.DataFrame(columns=['risk_diagnosis','count'])
     fig8 = px.bar(driver_impact, x='risk_diagnosis', y='count', color='risk_diagnosis', title=f"<b>Chart 08: Volume of Primary Threat Drivers in {sel_state} Active Scope</b>", labels={'risk_diagnosis': 'ML Diagnosis', 'count': 'Number of Impacted Records'}, color_discrete_sequence=px.colors.qualitative.Pastel)
     st.plotly_chart(fig8, width='stretch')
-
     st.markdown('<div class="section-header">Chart 10: High-Priority Forensic Audit List</div>', unsafe_allow_html=True)
     st.write("The following sites have been flagged by the Isolation Forest model for manual document verification.")
     audit_table = build_audit_table(view_df)
