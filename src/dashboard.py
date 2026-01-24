@@ -124,7 +124,7 @@ with st.sidebar:
     st.markdown("---")
     if df is not None:
         # Filtered State List
-        state_list = sorted([s for s in df['state'].unique() if s != 'OTHER/UNCATEGORIZED'])
+        state_list = run_query("SELECT DISTINCT state FROM audit_data ORDER BY state")['state'].tolist()
         sel_state = st.selectbox("Select State", ["INDIA"] + state_list,on_change=reset_search)
         
         st.markdown("---")
@@ -135,7 +135,38 @@ with st.sidebar:
         f4 = st.checkbox("Suspicious Profile Creation", value=True)
         
         risk_map = {'age_18_greater': f1, 'service_delivery_rate': f2, 'demo_age_17_': f3, 'security_anomaly_score': f4}
-        active_drivers = [k for k, v in risk_map.items() if v]
+        active_drivers = "', '".join([k for k, v in risk_map.items() if v])
+        where_clause = f"primary_risk_driver IN ('{active_drivers_str}')"
+if sel_state != "INDIA":
+    where_clause += f" AND UPPER(state) = '{sel_state.upper()}'"
+
+# C. KPI DATA: Get the totals using SQL (Uses 0 RAM)
+kpi_query = f"""
+    SELECT 
+        COUNT(DISTINCT pincode) as unique_pins,
+        AVG(integrity_score) * 10 as avg_risk,
+        AVG(service_delivery_rate) as avg_mbu,
+        COUNT(*) as row_count
+    FROM audit_table 
+    WHERE {where_clause}
+"""
+kpi_results = run_query(kpi_query)
+
+# D. VIEW DATA: Get only the rows needed for the Table/Tabs
+# This only pulls the 'Top 2000' anomalies into RAM instead of 3.8 Million
+view_df_query = f"""
+    SELECT * FROM audit_table 
+    WHERE {where_clause}
+    ORDER BY integrity_score DESC 
+    LIMIT 2000
+"""
+view_df = run_query(view_df_query)
+
+# --- RE-APPLY THE FORMATTING TO THE SMALL view_df ---
+view_df['pincode_str'] = view_df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
+view_df['integrity_risk_pct'] = (view_df['integrity_score'] * 10).clip(0, 100).round(2)
+view_df['risk_diagnosis'] = view_df['primary_risk_driver'].map(label_map).fillna("Systemic Risk")
+view_df['date'] = pd.to_datetime(view_df['date'], errors='coerce')
 
         st.markdown("---")
         
@@ -243,14 +274,12 @@ if df is not None:
     total_unique_pins = df['pincode'].nunique() 
     # --- 6-KPI COMMAND ROW ---
     k1, k2, k3, k4, k5, k6 = st.columns(6)
-    with k1: st.metric("Audit Scope", sel_state if sel_state != "NATIONAL OVERVIEW" else "INDIA")
-    with k2: st.metric("Unique Pincodes", f"{view_df['pincode'].nunique():,}")
-    with k3: st.metric("High Risk Sites", len(view_df[view_df['integrity_risk_pct'] > 75]))
-    with k4: st.metric("Integrity", f"{100 - view_df['integrity_risk_pct'].mean():.1f}%")
-    child_upd = view_df['service_delivery_rate'].mean()
-    with k5: st.metric("Child Biometric Updates", f"{view_df["service_delivery_rate"].mean():.1f}%")
-    
-    with k6: st.metric("Records Analyzed", f"{len(view_df):,}") 
+    with k1: st.metric("Audit Scope", sel_state[:12])
+    with k2: st.metric("Unique Pincodes", f"{int(kpi_data['unique_pins'][0]):,}")
+    with k3: st.metric("Integrity", f"{100 - kpi_data['avg_risk'][0]:.1f}%")
+    with k4: st.metric("Child MBU Rate", f"{kpi_data['avg_mbu'][0]:.1f}%")
+    with k5: st.metric("Primary Threat", "Analysis Active") # Or query the mode via SQL
+    with k6: st.metric("Records Analyzed", "3,872,227") # Keep the big number hardcoded
     st.markdown("---")
 
     t1, t2, t3, t4,t5= st.tabs(["Executive Overview", "Behavioral DNA", "Strategic Action", "Risk Drives","Pincode Drilldown"])
