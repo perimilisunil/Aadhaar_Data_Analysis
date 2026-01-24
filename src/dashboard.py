@@ -262,7 +262,7 @@ with st.sidebar:
                     st.download_button(
                         label="📥 Download Submission PDF",
                         data=pdf_bytes,
-                        file_name=f"UIDAI_11060_AadhaarSetu_ProjectReport.pdf",
+                        file_name=f"AadhaarSetu_ProjectReport.pdf",
                         mime="application/pdf"
                     )
                     st.success("Report Compiled. Ready for Submission.")
@@ -337,7 +337,7 @@ with t1:
             xaxis_title=""
         )
 
-        st.plotly_chart(fig_life, use_container_width=True)      
+        st.plotly_chart(fig_life,width='stretch')      
     
     with col2:
         pie_data = view_df['risk_diagnosis'].value_counts().reset_index()
@@ -350,7 +350,7 @@ with t1:
             color_discrete_sequence=px.colors.qualitative.Pastel,
             title=f"Risk Profile Composition: {sel_state}"
         )
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_pie,width='stretch')
 
     # TREEMAP
     st.markdown('<div class="section-header">Regional Integrity Hierarchy</div>', unsafe_allow_html=True)
@@ -402,7 +402,7 @@ with t1:
             coloraxis_colorbar=dict(title="Relative Risk %", ticksuffix="%")
         )
 
-        st.plotly_chart(fig_tree, use_container_width=True)
+        st.plotly_chart(fig_tree, width='stretch')
     
     # LIVE TREND ANALYSIS
     st.markdown('<div class="section-header">Administrative Pulse: Risk & Compliance Trends</div>', unsafe_allow_html=True)
@@ -445,7 +445,7 @@ with t1:
         hovermode="x unified"
     )
 
-    st.plotly_chart(fig_pulse, use_container_width=True)
+    st.plotly_chart(fig_pulse,width='stretch')
 
 with t2:
     st.markdown('<div class="section-header">Automated Risk Profiling: Characterizing Systemic Anomalies</div>', unsafe_allow_html=True)
@@ -454,12 +454,12 @@ with t2:
     with row1_col1:
         img2_path = os.path.join(root_path, "output", "charts", "02_risk_leaderboard.png")
         if os.path.exists(img2_path):
-            st.image(img2_path, use_column_width=True, caption="Chart 02: Top 25 Priority Audit Districts")
+            st.image(img2_path, width='stretch', caption="Chart 02: Top 25 Priority Audit Districts")
     
     with row1_col2:
         img3_path = os.path.join(root_path, "output", "charts", "03_risk_treemap.png")
         if os.path.exists(img3_path):
-            st.image(img3_path, use_column_width=True, caption="Chart 03: National Integrity Hierarchy")
+            st.image(img3_path, width='stretch', caption="Chart 03: National Integrity Hierarchy")
 
     st.markdown('<div class="section-header">Regional Forensic DNA (Live Investigative Matrix)</div>', unsafe_allow_html=True)
     
@@ -489,18 +489,18 @@ with t2:
     with row3_col1:
         img5_path = os.path.join(root_path, "output", "ML_Anomaly_charts", "05_ml_threat_radar.png")
         if os.path.exists(img5_path):
-            st.image(img5_path, use_column_width=True, caption="Chart 05: Behavioral Signature Radar")
+            st.image(img5_path, width='stretch', caption="Chart 05: Behavioral Signature Radar")
     
     with row3_col2:
         img6_path = os.path.join(root_path, "output", "ML_Anomaly_charts", "06_ml_forensic_scorecard.png")
         if os.path.exists(img6_path):
-            st.image(img6_path, use_column_width=True, caption="Chart 06: Forensic Magnitude Scorecard")
+            st.image(img6_path, width='stretch', caption="Chart 06: Forensic Magnitude Scorecard")
 
 with t3:
     st.markdown('<div class="section-header">Root-Cause Modelling & Strategic Resource Allocation</div>', unsafe_allow_html=True)
     img11_path = os.path.join(root_path, "output", "Deep_Analysis", "11_strategic_portfolio.png")
     if os.path.exists(img11_path):
-        st.image(img11_path, use_column_width=True, caption="Chart 11: National Policy Zones")
+        st.image(img11_path, width='stretch', caption="Chart 11: National Policy Zones")
 
     st.markdown('<div class="section-header">Regional Risk Driver Impact (Live Analysis)</div>', unsafe_allow_html=True)
     driver_impact = view_df['risk_diagnosis'].value_counts().reset_index()
@@ -513,7 +513,7 @@ with t3:
         labels={'risk_diagnosis': 'ML Diagnosis', 'count': 'Number of Impacted Records'},
         color_discrete_sequence=px.colors.qualitative.Pastel
     )
-    st.plotly_chart(fig8, use_container_width=True)
+    st.plotly_chart(fig8,width='stretch')
 
     st.markdown('<div class="section-header">Chart 10: High-Priority Forensic Audit List</div>', unsafe_allow_html=True)
     st.write("The following sites have been flagged by the **Isolation Forest** model for manual document verification.")
@@ -539,7 +539,7 @@ with t3:
             ),
             "risk_diagnosis": "Forensic Diagnosis"
         },
-        use_container_width=True,
+        width='stretch',
         hide_index=True
     )
     
@@ -557,11 +557,11 @@ with t4:
     with row1_col1:
         img9_path = os.path.join(root_path, "output", "Deep_Analysis", "09_state_anomaly_concentration.png")
         if os.path.exists(img9_path):
-            st.image(img9_path, use_column_width=True)
+            st.image(img9_path,width='stretch')
     with row1_col2:
         img8_path = os.path.join(root_path, "output", "Deep_Analysis", "08_global_feature_importance.png")
         if os.path.exists(img8_path):
-            st.image(img8_path, use_column_width=True)
+            st.image(img8_path,width='stretch')
 
     st.markdown('<div class="section-header">The Administrative Pressure Index: Workload vs. Security Oversight</div>', unsafe_allow_html=True)
     st.info("""
@@ -615,11 +615,11 @@ with t4:
         xaxis=dict(tickangle=45, tickfont=dict(size=11)) 
     )
     
-    st.plotly_chart(fig_friction, use_container_width=True)
+    st.plotly_chart(fig_friction, width='stretch')
 
     st.success("""
     **Administrative Directive:**
-    - **State-Level Hotspots:** Look for states appearing multiple times in this Top 15 (e.g., DELHI). This indicates a systemic state-wide failure in balancing workload with security.
+    - **State-Level Hotspots:** Look for states appearing multiple times in this Top 15. This indicates a systemic state-wide failure in balancing workload with security.
     """)
 
 with t5:
