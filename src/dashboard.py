@@ -65,14 +65,14 @@ def load_data():
     
     con = duckdb.connect(database=':memory:')
     
-    # 1. INCREASED SAMPLE RATE (60%) to reach 2.2M+ records
+    # 1. INCREASED SAMPLE RATE (80%) to reach 2.2M+ records
     query = f"""
         SELECT * FROM read_parquet('{audit_path}')
         WHERE integrity_score > 5
         UNION ALL
         SELECT * FROM read_parquet('{audit_path}')
         WHERE integrity_score <= 5
-        USING SAMPLE 99.9% (bernoulli)
+        USING SAMPLE 80% (bernoulli)
     """
     df = con.execute(query).df()
     
