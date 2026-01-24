@@ -57,7 +57,7 @@ label_fix = {
 # --- 3. GEOGRAPHY & DATA ENGINE ---
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-audit_path = os.path.join(project_root, "output", "final_audit_report.parquet")
+audit_path = "https://raw.githubusercontent.com/perimilisunil/aadhaar_data_analysis/main/output/final_audit_report.parquet"
 master_path = os.path.join(project_root, "datasets", "pincode_master_clean.csv")
 
 # --- Safe loader settings
@@ -100,30 +100,22 @@ def safe_read_parquet(path, columns=None, nrows=None):
 # --- UPDATE: cached safe loader (prevents re-reading on each rerun) - Added minimal columns for faster startup
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_data_safe(parquet_path, master_path=None, sample_when_large=True):
-    """
-    Loads audit data with safe fallbacks and returns dataframe plus a status dict.
-    Cached so host restarts/re-runs don't re-load arbitrarily.
-    """
     status = {"sampled": False, "msg": ""}
     if not os.path.exists(parquet_path):
         status["msg"] = f"Parquet file not found: {parquet_path}"
         return None, status
-    required_cols = [
-        "pincode", "integrity_score", "primary_risk_driver", "date", "state", "district",
-        "age_0_5", "age_5_17", "age_18_greater",
-        "bio_age_5_17", "demo_age_5_17", "bio_age_17_", "demo_age_17_","security_anomaly_score"
-    ]
     try:
-        fsize = os.path.getsize(parquet_path, required_cols)
-    except Exception:
-        fsize = 0
-    try:
-        # For small file like yours (16k), load minimal columns first for super fast startup
-        minimal_cols = ["pincode", "pincode_str", "state", "district", "integrity_score", "primary_risk_driver", "date"]  # Light load
-        df = safe_read_parquet(parquet_path, columns=minimal_cols if fsize < 1_000_000 else required_cols)  # Under 1MB, minimal
+        df = pd.read_parquet(parquet_path)  # No columns= limit since small file
+        status["msg"] = f"Loaded {len(df)} rows successfully."
     except Exception as e:
-        status["msg"] = f"Failed to read parquet: {e}"
+        status["msg"] = f"Parquet read failed: {str(e)}"
+        st.error(status["msg"])
         return None, status
+    # pincode_str creation - safe way
+    if 'pincode' in df.columns:
+        df['pincode_str'] = df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
+    else:
+        df['pincode_str'] = ''
     # cheap normalization
     try:
         df['pincode_str'] = df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
