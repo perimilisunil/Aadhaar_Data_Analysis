@@ -116,9 +116,8 @@ with st.sidebar:
         where_clause = f"primary_risk_driver IN ('{active_drivers_str}')"
         if sel_state != "INDIA":
             where_clause += f" AND UPPER(state) = '{sel_state.upper()}'"
-         state_summary_query = f"""
-                
-                SELECT 
+            state_summary_query = f"""
+            SELECT 
                     state, 
                     AVG(integrity_score)*10 as risk, 
                     AVG(service_delivery_rate) as delivery,
