@@ -51,58 +51,44 @@ label_fix = {
 }
 
 # --- 3. GEOGRAPHY & DATA ENGINE ---
-    # --- 1. DEFINE ROOT PATH GLOBALLY ---
+@st.cache_data
+# --- 1. DEFINE ROOT PATH GLOBALLY ---
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PARQUET_PATH = os.path.join(root_path, "output", "final_audit_report.parquet")
+MASTER_PATH = os.path.join(root_path, "datasets", "pincode_master_clean.csv")
+
+def run_query(query_text):
+    """Executes SQL against the parquet file without loading it into RAM."""
+    con = duckdb.connect(database=':memory:')
+    # Map the virtual table 'audit_table' to the actual file path
+    final_query = query_text.replace("audit_table", f"'{PARQUET_PATH}'")
+    return con.execute(final_query).df()
 
 @st.cache_data
-def load_data():
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-    audit_path = os.path.join(project_root, "output", "final_audit_report.parquet")
-
-    master_path = os.path.join(project_root, "datasets", "pincode_master_clean.csv")
-    if not os.path.exists(audit_path): return None
-    
-    con = duckdb.connect(database=':memory:')
-    
-    # 1. INCREASED SAMPLE RATE (80%) to reach 2.2M+ records
-    query = f"""
-        SELECT * FROM read_parquet('{audit_path}')
-        WHERE integrity_score > 7
-        UNION ALL
-        SELECT * FROM read_parquet('{audit_path}')
-        WHERE integrity_score <= 7
-        USING SAMPLE 50% (bernoulli)
-    """
-    df = con.execute(query).df()
-    
-    # 2. FAST MEMORY SQUEEZE
-    df['integrity_score'] = df['integrity_score'].astype('float32')
-    df['pincode_str'] = df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
-    
-    # 3. GEOGRAPHIC RESCUE (Removing Unknowns)
-    if os.path.exists(master_path):
-        m_df = pd.read_csv(master_path)
+def get_geography_lookups():
+    """Loads only the tiny Pincode-to-State map once for name healing."""
+    if os.path.exists(MASTER_PATH):
+        m_df = pd.read_csv(MASTER_PATH)
         m_df['pincode_str'] = m_df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
-        state_lookup = m_df.set_index('pincode_str')['statename'].to_dict()
-        
-        # Replace UNKNOWN states with data from Master Lookup
-        invalid = ['UNKNOWN', 'NAN', 'NONE', '0', 'OTHER/UNCATEGORIZED', 'UNCATEGORIZED']
-        df['state'] = df['state'].astype(str).str.upper().str.strip()
-        df['state'] = np.where(df['state'].isin(invalid), df['pincode_str'].map(state_lookup), df['state'])
+        state_map = m_df.set_index('pincode_str')['statename'].to_dict()
+        return state_map
+    return {}
 
-    # Final Filter: Remove any records that are still Unknown
-    df = df[~df['state'].isna() & (df['state'] != 'NAN') & (df['state'] != 'UNKNOWN')]
-    
-    # 4. DASHBOARD METRICS
-    df['integrity_risk_pct'] = (df['integrity_score'] * 10).clip(0, 100).round(2)
-    label_map = {'age_18_greater': 'Adult Entry Spikes', 'service_delivery_rate': 'Child Biometric Lags', 'demo_age_17_': 'Activity Bursts', 'security_anomaly_score': 'Suspicious Creation'}
-    df['risk_diagnosis'] = df['primary_risk_driver'].map(label_map).fillna("Systemic Risk")
-    df['date'] = pd.to_datetime(df['date'], errors='coerce')
-    
-    return df
+# Load the tiny lookup map once
+state_lookup_map = get_geography_lookups()
 
-df = load_data()
+@st.cache_data
+def get_state_list():
+    """Fetches the unique state list via SQL in 0.1 seconds."""
+    if not os.path.exists(PARQUET_PATH): return []
+    res = run_query("SELECT DISTINCT UPPER(TRIM(state)) as state FROM audit_table ORDER BY state")
+    # Clean the list of 'UNKNOWN' or 'OTHER'
+    invalid = ['UNKNOWN', 'NAN', 'NONE', '0', 'OTHER/UNCATEGORIZED', 'UNCATEGORIZED']
+    return sorted([s for s in res['state'].tolist() if s not in invalid and pd.notna(s)])
+
+# This replaces your old 'df = load_data()'
+# We don't load the full 3.8M rows anymore to save RAM
+state_list = get_state_list()
 
 # --- 3. SIDEBAR ---
 if df is not None:
@@ -160,15 +146,15 @@ view_df_query = f"""
     ORDER BY integrity_score DESC 
     LIMIT 2000
 """
-view_df = run_query(view_df_query)
-
-# --- RE-APPLY THE FORMATTING TO THE SMALL view_df ---
-view_df['pincode_str'] = view_df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
-view_df['integrity_risk_pct'] = (view_df['integrity_score'] * 10).clip(0, 100).round(2)
-view_df['risk_diagnosis'] = view_df['primary_risk_driver'].map(label_map).fillna("Systemic Risk")
-view_df['date'] = pd.to_datetime(view_df['date'], errors='coerce')
-
-        st.markdown("---")
+    view_df = run_query(view_df_query)
+    
+    # --- RE-APPLY THE FORMATTING TO THE SMALL view_df ---
+    view_df['pincode_str'] = view_df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
+    view_df['integrity_risk_pct'] = (view_df['integrity_score'] * 10).clip(0, 100).round(2)
+    view_df['risk_diagnosis'] = view_df['primary_risk_driver'].map(label_map).fillna("Systemic Risk")
+    view_df['date'] = pd.to_datetime(view_df['date'], errors='coerce')
+    
+            st.markdown("---")
         
         # We wrap the input in a form to group it with a Submit button
         with st.form("pincode_scan_form", clear_on_submit=False):
@@ -268,6 +254,45 @@ view_df['date'] = pd.to_datetime(view_df['date'], errors='coerce')
             except Exception as e:
                 st.error(f"System Error: {str(e)}")
         
+        active_drivers_str = "', '".join(active_drivers)
+
+# B. Build Dynamic SQL WHERE Clause
+where_clause = f"primary_risk_driver IN ('{active_drivers_str}')"
+if sel_state != "INDIA":
+    where_clause += f" AND UPPER(state) = '{sel_state.upper()}'"
+
+# C. GET KPI DATA via SQL (Memory usage: ~0MB)
+# We do the averaging on disk
+kpi_query = f"""
+    SELECT 
+        COUNT(DISTINCT pincode) as unique_pins,
+        AVG(integrity_score) * 10 as avg_risk,
+        AVG(service_delivery_rate) as avg_mbu,
+        COUNT(*) as record_count_filtered
+    FROM audit_table 
+    WHERE {where_clause}
+"""
+kpi_res = run_query(kpi_query)
+
+# D. GET VIEW DATA (Pulls only the Top 2000 anomalies for the Tabs/Table)
+# This keeps RAM usage low enough for 100 users to view the site at once
+view_query = f"""
+    SELECT * FROM audit_table 
+    WHERE {where_clause}
+    ORDER BY integrity_score DESC 
+    LIMIT 2000
+"""
+view_df = run_query(view_query)
+
+# --- RE-APPLY NECESSARY FORMATTING TO THE SMALL VIEW_DF ---
+view_df['pincode_str'] = view_df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
+view_df['integrity_risk_pct'] = (view_df['integrity_score'] * 10).clip(0, 100).round(2)
+view_df['risk_diagnosis'] = view_df['primary_risk_driver'].map(label_map).fillna("Systemic Risk")
+view_df['date'] = pd.to_datetime(view_df['date'], errors='coerce')
+
+# GEOGRAPHIC HEALING: Only on the small 2000-row view_df
+invalid_tags = ['UNKNOWN', 'NAN', 'NONE', '0', 'NULL', '', 'UNDEFINED', 'UNCATEGORIZED']
+view_df['state'] = np.where(view_df['state'].isin(invalid_tags), view_df['pincode_str'].map(state_lookup_map), view_df['state'])
 
 st.markdown('<p class="main-title">Aadhaar National Integrity Dashboard</p>', unsafe_allow_html=True)
 if df is not None:
@@ -278,7 +303,9 @@ if df is not None:
     with k2: st.metric("Unique Pincodes", f"{int(kpi_data['unique_pins'][0]):,}")
     with k3: st.metric("Integrity", f"{100 - kpi_data['avg_risk'][0]:.1f}%")
     with k4: st.metric("Child MBU Rate", f"{kpi_data['avg_mbu'][0]:.1f}%")
-    with k5: st.metric("Primary Threat", "Analysis Active") # Or query the mode via SQL
+    with k5:
+        major_threat = view_df['risk_diagnosis'].mode()[0] if not view_df.empty else "Safe"
+        st.metric("Major Threat", major_threat)
     with k6: st.metric("Records Analyzed", "3,872,227") # Keep the big number hardcoded
     st.markdown("---")
 
