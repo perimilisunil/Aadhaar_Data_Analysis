@@ -95,7 +95,7 @@ def load_data():
             UNION ALL
             SELECT * FROM read_parquet('{audit_path}')
             WHERE integrity_score <= 5
-            USING SAMPLE 45% (bernoulli)
+            USING SAMPLE 48% (bernoulli)
         """
         df = con.execute(query).df()
     
