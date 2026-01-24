@@ -88,14 +88,14 @@ def load_data():
     
     # CRITICAL: Use context manager to auto-close DuckDB connection
     with duckdb.connect(database=':memory:') as con:
-        # OPTIMIZED: Sample 40% instead of 99.9% to reduce memory
+        # OPTIMIZED: Sample 50% instead of 99.9% to reduce memory
         query = f"""
             SELECT * FROM read_parquet('{audit_path}')
             WHERE integrity_score > 5
             UNION ALL
             SELECT * FROM read_parquet('{audit_path}')
             WHERE integrity_score <= 5
-            USING SAMPLE 40% (bernoulli)
+            USING SAMPLE 50% (bernoulli)
         """
         df = con.execute(query).df()
     
