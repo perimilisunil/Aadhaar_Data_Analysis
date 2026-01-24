@@ -57,7 +57,7 @@ label_fix = {
 # --- 3. GEOGRAPHY & DATA ENGINE ---
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-audit_path = "https://raw.githubusercontent.com/perimilisunil/aadhaar_data_analysis/main/output/final_audit_report.parquet"
+audit_path = os.path.join(project_root, "output", "final_audit_report.parquet")
 master_path = os.path.join(project_root, "datasets", "pincode_master_clean.csv")
 
 # --- Safe loader settings
