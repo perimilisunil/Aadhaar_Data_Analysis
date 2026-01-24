@@ -133,7 +133,7 @@ with st.sidebar:
             SELECT * FROM audit_table 
             WHERE {where_clause}
             ORDER BY integrity_score DESC 
-            LIMIT 2000
+            LIMIT 20000
         """
         view_df = run_query(view_df_query)
         
@@ -181,12 +181,13 @@ st.markdown('<p class="main-title">Aadhaar National Integrity Dashboard</p>', un
 if not view_df.empty:
     # --- 6-KPI COMMAND ROW ---
     k1, k2, k3, k4, k5, k6 = st.columns(6)
-    with k1: st.metric("Audit Scope", sel_state[:12])
-    with k2: st.metric("Unique Pincodes", f"{int(kpi_data['unique_pins'][0]):,}")
+    with k1: st.metric("Audit Scope", sel_state if sel_state != "NATIONAL OVERVIEW" else "INDIA")
+    with k2: st.metric("Unique Pincodes", f"{view_df['pincode'].nunique():,}")
     with k3: st.metric("High Risk Sites", len(view_df[view_df['integrity_risk_pct'] > 75]))
-    with k4: st.metric("Integrity", f"{100 - kpi_data['avg_risk'][0]:.1f}%")
-    with k5: st.metric("Child MBU Rate", f"{kpi_data['avg_mbu'][0]:.1f}%")
-    with k6: st.metric("Records Analyzed", "3,872,227") # Hardcoded for hackathon scale
+    with k4: st.metric("Integrity", f"{100 - view_df['integrity_risk_pct'].mean():.1f}%")
+    child_upd = view_df['service_delivery_rate'].mean()
+    with k5: st.metric("Child Biometric Updates", f"{view_df["service_delivery_rate"].mean():.1f}%")
+    with k6: st.metric("Records Analyzed", f"{len(view_df):,}") 
     st.markdown("---")
     
     t1, t2, t3, t4,t5= st.tabs(["Executive Overview", "Behavioral DNA", "Strategic Action", "Risk Drives","Pincode Drilldown"])
