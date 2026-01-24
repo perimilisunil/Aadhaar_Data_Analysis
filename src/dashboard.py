@@ -482,7 +482,7 @@ with t2:
         title=f"<b>Chart 07: Normalized DNA Scorecard (Fingerprinting Fraud Types) {sel_state}</b>"
     )
     fig7.update_traces(hovertemplate="District: %{y}<br>Driver: %{x}<br>Relative Intensity: %{z:.2f}")
-    st.plotly_chart(fig7, use_container_width=True)
+    st.plotly_chart(fig7,width='stretch')
 
     row3_col1, row3_col2 = st.columns(2)
     
@@ -681,7 +681,7 @@ with t5:
                 height=500,
                 template="plotly_white"
             )
-            st.plotly_chart(fig_grad, use_container_width=True)
+            st.plotly_chart(fig_grad,width='stretch')
             
             st.markdown("**Field Investigative Evidence**")
             
