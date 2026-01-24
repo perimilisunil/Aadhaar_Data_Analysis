@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -14,24 +13,36 @@ warnings.filterwarnings("ignore")
 st.set_page_config(page_title="Aadhaar Integrity Analytics | National Forensic Suite", layout="wide")
 
 # --- 2. SESSION STATE MANAGEMENT ---
-if 'pincode_query' not in st.session_state:
-    st.session_state.pincode_query = ""
+if 'pincode_val' not in st.session_state:
+    st.session_state.pincode_val = ""
 
-def reset_search():
-    st.session_state.pincode_query = ""
+def clear_pincode():
+    st.session_state.pincode_val = ""
 
-# --- 2. CSS ---
+# --- 2. CSS---
 st.markdown("""
 <style>
-    .main-title { font-size: 2.8rem !important; font-weight: 900 !important; color: #1e3a8a; margin-bottom: 0.5rem; letter-spacing: -2px; line-height: 1.1; }
-    section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { font-size: 1.2rem !important; font-weight: 800 !important; margin-bottom: 10px !important; }
+    .main-title { 
+        font-size: 2.8rem !important; 
+        font-weight: 900 !important; 
+        color: #1e3a8a; 
+        margin-bottom: 0.5rem; 
+        letter-spacing: -2px; /* Professional tight kerning */
+        line-height: 1.1;
+    }
+    section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+        font-size: 1.2rem !important; 
+        font-weight: 800 !important;   
+        margin-bottom: 10px !important;
+    }
+
     .section-header { font-size: 1.6rem; font-weight: 700; color: #1e3a8a; border-left: 10px solid #ef4444; padding-left: 15px; margin: 25px 0; background: #f1f5f9; }
     [data-testid="stMetric"] { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; }
     [data-testid="stMetricValue"] { font-size: 1.5rem !important;white-space: nowrap; font-weight: 800 !important; color: #1e3a8a !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# Mapping for labels
+# mapping for internal keys
 label_fix = {
     'age_18_greater': 'Adult Entry Spikes', 
     'service_delivery_rate': 'Child Biometric Lags',
@@ -40,43 +51,81 @@ label_fix = {
 }
 
 # --- 3. GEOGRAPHY & DATA ENGINE ---
+    # --- 1. DEFINE ROOT PATH GLOBALLY ---
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PARQUET_PATH = os.path.join(root_path, "output", "final_audit_report.parquet")
-MASTER_PATH = os.path.join(root_path, "datasets", "pincode_master_clean.csv")
 
-def run_query(query_text):
-    """Executes SQL against the parquet file without loading it into RAM."""
+@st.cache_data
+def load_data():
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    audit_path = os.path.join(project_root, "output", "final_audit_report.parquet")
+
+    master_path = os.path.join(project_root, "datasets", "pincode_master_clean.csv")
+    if not os.path.exists(audit_path): return None
+    
     con = duckdb.connect(database=':memory:')
-    final_query = query_text.replace("audit_table", f"'{PARQUET_PATH}'")
-    return con.execute(final_query).df()
-
-@st.cache_data
-def get_geography_lookups():
-    if os.path.exists(MASTER_PATH):
-        m_df = pd.read_csv(MASTER_PATH)
+    
+    # 1. INCREASED SAMPLE RATE (60%) to reach 2.2M+ records
+    query = f"""
+        SELECT * FROM read_parquet('{audit_path}')
+        WHERE integrity_score > 5
+        UNION ALL
+        SELECT * FROM read_parquet('{audit_path}')
+        WHERE integrity_score <= 5
+        USING SAMPLE 99.9% (bernoulli)
+    """
+    df = con.execute(query).df()
+    
+    # 2. FAST MEMORY SQUEEZE
+    df['integrity_score'] = df['integrity_score'].astype('float32')
+    df['pincode_str'] = df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
+    
+    # 3. GEOGRAPHIC RESCUE (Removing Unknowns)
+    if os.path.exists(master_path):
+        m_df = pd.read_csv(master_path)
         m_df['pincode_str'] = m_df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
-        return m_df.set_index('pincode_str')['statename'].to_dict()
-    return {}
+        state_lookup = m_df.set_index('pincode_str')['statename'].to_dict()
+        
+        # Replace UNKNOWN states with data from Master Lookup
+        invalid = ['UNKNOWN', 'NAN', 'NONE', '0', 'OTHER/UNCATEGORIZED', 'UNCATEGORIZED']
+        df['state'] = df['state'].astype(str).str.upper().str.strip()
+        df['state'] = np.where(df['state'].isin(invalid), df['pincode_str'].map(state_lookup), df['state'])
 
-state_lookup_map = get_geography_lookups()
+    # Final Filter: Remove any records that are still Unknown
+    df = df[~df['state'].isna() & (df['state'] != 'NAN') & (df['state'] != 'UNKNOWN')]
+    
+    # 4. DASHBOARD METRICS
+    df['integrity_risk_pct'] = (df['integrity_score'] * 10).clip(0, 100).round(2)
+    label_map = {'age_18_greater': 'Adult Entry Spikes', 'service_delivery_rate': 'Child Biometric Lags', 'demo_age_17_': 'Activity Bursts', 'security_anomaly_score': 'Suspicious Creation'}
+    df['risk_diagnosis'] = df['primary_risk_driver'].map(label_map).fillna("Systemic Risk")
+    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+    
+    return df
 
-@st.cache_data
-def get_state_list():
-    if not os.path.exists(PARQUET_PATH): return []
-    res = run_query("SELECT DISTINCT UPPER(TRIM(state)) as state FROM audit_table ORDER BY state")
-    invalid = ['UNKNOWN', 'NAN', 'NONE', '0', 'OTHER/UNCATEGORIZED', 'UNCATEGORIZED']
-    return sorted([s for s in res['state'].tolist() if s not in invalid and pd.notna(s)])
+df = load_data()
 
-state_list = get_state_list()
+# --- 3. SIDEBAR ---
+if df is not None:
+    with st.sidebar:
+        # Ensure view_df is initialized so warnings stop
+        view_df = df.copy() 
+else:
+    st.error("Dataset not found. Check your file paths.")
+if 'pincode_query' not in st.session_state:
+    st.session_state.pincode_query = ""
+
+# This function will run EVERY time you change the state dropdown
+def reset_search():
+    st.session_state.pincode_query = ""
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/en/thumb/c/cf/Aadhaar_Logo.svg/1200px-Aadhaar_Logo.svg.png", width=120)
     st.markdown("---")
-    
-    if os.path.exists(PARQUET_PATH):
-        # State Selection
-        sel_state = st.selectbox("Select State", ["INDIA"] + state_list, on_change=reset_search)
+    if df is not None:
+        # Filtered State List
+        state_list = sorted([s for s in df['state'].unique() if s != 'OTHER/UNCATEGORIZED'])
+        sel_state = st.selectbox("Select State", ["INDIA"] + state_list,on_change=reset_search)
         
         st.markdown("---")
         st.markdown("### Risk Profiles")
@@ -87,135 +136,111 @@ with st.sidebar:
         
         risk_map = {'age_18_greater': f1, 'service_delivery_rate': f2, 'demo_age_17_': f3, 'security_anomaly_score': f4}
         active_drivers = [k for k, v in risk_map.items() if v]
-        
+
         st.markdown("---")
         
-        # Pincode Enquiry Form
+        # We wrap the input in a form to group it with a Submit button
         with st.form("pincode_scan_form", clear_on_submit=False):
             st.markdown("### Pincode Enquery")
-            search_pin = st.text_input("Enter 6-digit PIN", placeholder=" ", key="pincode_query")
+            search_pin = st.text_input(
+                "Enter 6-digit PIN", 
+                placeholder=" ", 
+                key="pincode_query" # Keeps the session state link
+            )
             submit_search = st.form_submit_button("Analyze Pincode")
 
-        # Logic to handle Pincode Search vs State Selection
+        # Initial view_df state
+        if sel_state == "INDIA":
+            view_df = df.copy()
+        else:
+            view_df = df[df['state'] == sel_state]
+       
         target_obj = None
+        
+        # Only process deep scan if the button is clicked or if a value exists in session state
         if st.session_state.pincode_query:
             search_str = str(st.session_state.pincode_query).strip()
-            # Fetch the specific PIN record via DuckDB
-            pin_data = run_query(f"SELECT * FROM audit_table WHERE pincode::VARCHAR LIKE '{search_str}%' LIMIT 1")
             
-            if not pin_data.empty:
-                target_obj = pin_data.iloc[0]
-                sel_state = target_obj['state'].upper() # Switch state to the PIN's location
+            # Find the match in the master database
+            match = df[df['pincode_str'] == search_str]
+            
+            if not match.empty:
+                target_obj = match.iloc[0]
+                # Force the dashboard to the state where this Pincode belongs
+                sel_state = target_obj['state']
+                view_df = df[df['state'] == sel_state]
+                
                 if submit_search:
-                    st.success(f"PINCODE FOUND : {target_obj['district']}")
+                    st.sidebar.success(f"PINCODE : {target_obj['district']}")
             else:
-                if submit_search: st.error("PINCODE not found in forensic database")
-
-        # --- DYNAMIC DATA FILTERING ENGINE ---
-        active_drivers_str = "', '".join(active_drivers)
-        where_clause = f"primary_risk_driver IN ('{active_drivers_str}')"
-        if sel_state != "INDIA":
-            where_clause += f" AND UPPER(state) = '{sel_state.upper()}'"
-            state_summary_query = f"""
-            SELECT 
-                    state, 
-                    AVG(integrity_score)*10 as risk, 
-                    AVG(service_delivery_rate) as delivery,
-                    COUNT(*) as volume,
-                    COUNT(DISTINCT district) as districts
-                FROM audit_table 
-                WHERE {where_clause}
-                GROUP BY state
-            """
-            state_summary_df = run_query(state_summary_query)
-            
-            # 2. Lifecycle Totals (For Chart 1)
-            # DuckDB does the sum on 3.8M rows in 0.2 seconds
-            lifecycle_query = f"""
-                SELECT 
-                    SUM(age_0_5) as infant_enrol,
-                    SUM(age_5_17) as child_enrol,
-                    SUM(age_18_greater) as adult_enrol,
-                    SUM(bio_age_5_17) + SUM(demo_age_5_17) as child_upd,
-                    SUM(bio_age_17_) + SUM(demo_age_17_) as adult_upd
-                FROM audit_table 
-                WHERE {where_clause}
-            """
-            life_results = run_query(lifecycle_query)
-            
-            # 3. Risk Composition (For Pie Chart)
-            risk_comp_query = f"""
-                SELECT primary_risk_driver, COUNT(*) as count 
-                FROM audit_table 
-                WHERE {where_clause} 
-                GROUP BY primary_risk_driver
-            """
-            risk_comp_df = run_query(risk_comp_query)
-            risk_comp_df['risk_diagnosis'] = risk_comp_df['primary_risk_driver'].map(label_fix)
-
-        # KPI DATA (DuckDB calculated on disk)
-        kpi_query = f"""
-            SELECT 
-                COUNT(DISTINCT pincode) as unique_pins,
-                AVG(integrity_score) * 10 as avg_risk,
-                AVG(service_delivery_rate) as avg_mbu
-            FROM audit_table 
-            WHERE {where_clause}
-        """
-        kpi_data = run_query(kpi_query)
-
-        # VIEW DATA (Limit to Top 2000 for Tab performance)
-        view_df_query = f"""
-            SELECT * FROM audit_table 
-            WHERE {where_clause}
-            ORDER BY integrity_score DESC 
-            LIMIT 2000
-        """
-        view_df = run_query(view_df_query)
+                if submit_search:
+                    st.sidebar.error("PINCODE not found in forensic database")
         
-        # Apply formatting to the resulting small view_df
-        view_df['pincode_str'] = view_df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
-        view_df['integrity_risk_pct'] = (view_df['integrity_score'] * 10).clip(0, 100).round(2)
-        view_df['risk_diagnosis'] = view_df['primary_risk_driver'].map(label_fix).fillna("Systemic Risk")
-        view_df['date'] = pd.to_datetime(view_df['date'], errors='coerce')
+        # Apply the forensic risk filters to the final view
+        view_df = view_df[view_df['primary_risk_driver'].isin(active_drivers)]
 
         # --- SIDEBAR DATE FILTER ---
         st.markdown("---")
         st.markdown("### Select Month")
         
-        all_periods = sorted(view_df['date'].dt.to_period('M').dropna().unique()) if not view_df.empty else []
-        month_labels = [m.strftime('%B %Y') for m in all_periods]
+        # 1. Prepare the sorted list of unique months in Month-Year format
+        all_periods = df['date'].dt.to_period('M').dropna().unique()
+        all_months = sorted(all_periods)
+        month_labels = [m.strftime('%B %Y') for m in all_months]
         
-        if month_labels:
-            c1, c2 = st.columns(2)
-            with c1: start_l = st.selectbox("From", options=month_labels, index=0)
-            with c2: end_l = st.selectbox("To", options=month_labels, index=len(month_labels)-1)
+        # 2. Layout: Two columns for Start and End
+        col_from, col_to = st.columns(2)
+        
+        with col_from:
+            start_label = st.selectbox("From", options=month_labels, index=0)
+            
+        with col_to:
+            # Default 'To' is the last month (index=len-1)
+            end_label = st.selectbox("To", options=month_labels, index=len(month_labels)-1)
 
-            start_p = all_periods[month_labels.index(start_l)]
-            end_p = all_periods[month_labels.index(end_l)]
+        # 3. Convert selected labels back to actual dates for filtering
+        start_period = all_months[month_labels.index(start_label)]
+        end_period = all_months[month_labels.index(end_label)]
 
-            if start_p > end_p:
-                st.error("Error: Check Date Range")
-            else:
-                view_df = view_df[(view_df['date'] >= start_p.start_time) & (view_df['date'] <= end_p.end_time)]
-                st.caption(f"Range: {start_l} to {end_l}")
-
+        # 4. Error Handling: If user picks 'From' date after 'To' date
+        if start_period > end_period:
+            st.error("Error: 'From' date must be before 'To' date.")
+        else:
+            # Apply Filter to view_df
+            start_date = start_period.start_time
+            end_date = end_period.end_time
+            view_df = view_df[(view_df['date'] >= start_date) & (view_df['date'] <= end_date)]
+            
+            st.caption(f"Showing data from {start_label} to {end_label}")
         # --- SIDEBAR PDF EXPORT ---
         st.markdown("---")
         st.markdown("### Export Final Report")
         if st.button("Download Report"):
             try:
                 with st.spinner("Compiling National & Tactical Evidence..."):
-                    pdf_bytes = generate_forensic_dossier(df=view_df, state_name=sel_state, root_path=root_path)
+                    pdf_bytes = generate_forensic_dossier(
+                        df=df, 
+                        state_name=sel_state, 
+                        root_path=root_path, 
+                        search_pin=st.session_state.pincode_query,
+                        team_id="UIDAI_11060"
+                    )
+                    
                     if pdf_bytes:
-                        st.download_button(label="📥 Download Submission PDF", data=pdf_bytes, file_name=f"UIDAI_11060_AadhaarSetu_Report.pdf", mime="application/pdf")
+                        st.download_button(
+                            label="📥 Download Submission PDF",
+                            data=pdf_bytes,
+                            file_name=f"UIDAI_11060_AadhaarSetu_ProjectReport.pdf",
+                            mime="application/pdf"
+                        )
+                        st.success("Report Compiled. Ready for Submission.")
             except Exception as e:
                 st.error(f"System Error: {str(e)}")
+        
 
-# --- 5. MAIN DASHBOARD ---
 st.markdown('<p class="main-title">Aadhaar National Integrity Dashboard</p>', unsafe_allow_html=True)
-
-if not view_df.empty:
+if df is not None:
+    total_unique_pins = df['pincode'].nunique() 
     # --- 6-KPI COMMAND ROW ---
     k1, k2, k3, k4, k5, k6 = st.columns(6)
     with k1: st.metric("Audit Scope", sel_state if sel_state != "NATIONAL OVERVIEW" else "INDIA")
@@ -224,9 +249,10 @@ if not view_df.empty:
     with k4: st.metric("Integrity", f"{100 - view_df['integrity_risk_pct'].mean():.1f}%")
     child_upd = view_df['service_delivery_rate'].mean()
     with k5: st.metric("Child Biometric Updates", f"{view_df["service_delivery_rate"].mean():.1f}%")
+    
     with k6: st.metric("Records Analyzed", f"{len(view_df):,}") 
     st.markdown("---")
-    
+
     t1, t2, t3, t4,t5= st.tabs(["Executive Overview", "Behavioral DNA", "Strategic Action", "Risk Drives","Pincode Drilldown"])
 
     with t1:
@@ -661,4 +687,4 @@ if not view_df.empty:
                 )
         else:
             st.info("**National Aadhar Portal Ready.** Please enter a Pincode in the sidebar.")
-           
+        
