@@ -174,12 +174,15 @@ with st.sidebar:
         view_df = run_query(view_df_query)
         
         # Apply formatting to the resulting small view_df
+        view_df['pincode_str'] = view_df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
         view_df['integrity_risk_pct'] = (view_df['integrity_score'] * 10).clip(0, 100).round(2)
         view_df['risk_diagnosis'] = view_df['primary_risk_driver'].map(label_fix).fillna("Systemic Risk")
+        view_df['date'] = pd.to_datetime(view_df['date'], errors='coerce')
 
         # --- SIDEBAR DATE FILTER ---
         st.markdown("---")
         st.markdown("### Select Month")
+        
         all_periods = sorted(view_df['date'].dt.to_period('M').dropna().unique()) if not view_df.empty else []
         month_labels = [m.strftime('%B %Y') for m in all_periods]
         
