@@ -116,6 +116,43 @@ with st.sidebar:
         where_clause = f"primary_risk_driver IN ('{active_drivers_str}')"
         if sel_state != "INDIA":
             where_clause += f" AND UPPER(state) = '{sel_state.upper()}'"
+         state_summary_query = f"""
+                
+                SELECT 
+                    state, 
+                    AVG(integrity_score)*10 as risk, 
+                    AVG(service_delivery_rate) as delivery,
+                    COUNT(*) as volume,
+                    COUNT(DISTINCT district) as districts
+                FROM audit_table 
+                WHERE {where_clause}
+                GROUP BY state
+            """
+            state_summary_df = run_query(state_summary_query)
+            
+            # 2. Lifecycle Totals (For Chart 1)
+            # DuckDB does the sum on 3.8M rows in 0.2 seconds
+            lifecycle_query = f"""
+                SELECT 
+                    SUM(age_0_5) as infant_enrol,
+                    SUM(age_5_17) as child_enrol,
+                    SUM(age_18_greater) as adult_enrol,
+                    SUM(bio_age_5_17) + SUM(demo_age_5_17) as child_upd,
+                    SUM(bio_age_17_) + SUM(demo_age_17_) as adult_upd
+                FROM audit_table 
+                WHERE {where_clause}
+            """
+            life_results = run_query(lifecycle_query)
+            
+            # 3. Risk Composition (For Pie Chart)
+            risk_comp_query = f"""
+                SELECT primary_risk_driver, COUNT(*) as count 
+                FROM audit_table 
+                WHERE {where_clause} 
+                GROUP BY primary_risk_driver
+            """
+            risk_comp_df = run_query(risk_comp_query)
+            risk_comp_df['risk_diagnosis'] = risk_comp_df['primary_risk_driver'].map(label_fix)
 
         # KPI DATA (DuckDB calculated on disk)
         kpi_query = f"""
@@ -133,15 +170,13 @@ with st.sidebar:
             SELECT * FROM audit_table 
             WHERE {where_clause}
             ORDER BY integrity_score DESC 
-            LIMIT 20000
+            LIMIT 2000
         """
         view_df = run_query(view_df_query)
         
         # Apply formatting to the resulting small view_df
-        view_df['pincode_str'] = view_df['pincode'].astype(str).str.split('.').str[0].str.zfill(6)
         view_df['integrity_risk_pct'] = (view_df['integrity_score'] * 10).clip(0, 100).round(2)
         view_df['risk_diagnosis'] = view_df['primary_risk_driver'].map(label_fix).fillna("Systemic Risk")
-        view_df['date'] = pd.to_datetime(view_df['date'], errors='coerce')
 
         # --- SIDEBAR DATE FILTER ---
         st.markdown("---")
