@@ -602,12 +602,14 @@ with t3:
 with t4:
     st.markdown('<div class="section-header">National Service Baseline [Static Benchmarks]</div>', unsafe_allow_html=True)
     row1_col1, row1_col2 = st.columns(2)
-    img9_path = os.path.join(root_path, "output", "Deep_Analysis", "09_state_anomaly_concentration.png")
-    if os.path.exists(img9_path):
-        st.image(img9_path, width='stretch')
-    img8_path = os.path.join(root_path, "output", "Deep_Analysis", "08_global_feature_importance.png")
-    if os.path.exists(img8_path):
-        st.image(img8_path, width='stretch')
+    with row1_col1:
+        img9_path = os.path.join(root_path, "output", "Deep_Analysis", "09_state_anomaly_concentration.png")
+        if os.path.exists(img9_path):
+            st.image(img9_path, width='stretch')
+    with row1_col2:
+        img8_path = os.path.join(root_path, "output", "Deep_Analysis", "08_global_feature_importance.png")
+        if os.path.exists(img8_path):
+            st.image(img8_path, width='stretch')
     st.markdown('<div class="section-header">The Administrative Pressure Index: Workload vs. Security Oversight</div>', unsafe_allow_html=True)
     st.info("Forensic Narrative: This chart identifies Burnout Zones. When Maintenance Workload and Forensic Risk are both high, the system is at critical friction.")
     friction_top = build_friction_df(view_df)
