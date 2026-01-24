@@ -68,10 +68,10 @@ def load_data():
     # 1. INCREASED SAMPLE RATE (80%) to reach 2.2M+ records
     query = f"""
         SELECT * FROM read_parquet('{audit_path}')
-        WHERE integrity_score > 5
+        WHERE integrity_score > 10
         UNION ALL
         SELECT * FROM read_parquet('{audit_path}')
-        WHERE integrity_score <= 5
+        WHERE integrity_score <= 10
         USING SAMPLE 80% (bernoulli)
     """
     df = con.execute(query).df()
