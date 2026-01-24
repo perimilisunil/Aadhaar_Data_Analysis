@@ -111,10 +111,10 @@ def load_data_safe(parquet_path, master_path=None, sample_when_large=True):
     required_cols = [
         "pincode", "integrity_score", "primary_risk_driver", "date", "state", "district",
         "age_0_5", "age_5_17", "age_18_greater",
-        "bio_age_5_17", "demo_age_5_17", "bio_age_17_", "demo_age_17_"
+        "bio_age_5_17", "demo_age_5_17", "bio_age_17_", "demo_age_17_","security_anomaly_score"
     ]
     try:
-        fsize = os.path.getsize(parquet_path)
+        fsize = os.path.getsize(parquet_path, required_cols)
     except Exception:
         fsize = 0
     try:
@@ -198,20 +198,23 @@ def compute_view_df(df, sel_state, start_date, end_date, active_drivers):
         d = d[d['primary_risk_driver'].isin(active_drivers)]
     # date range
     if start_date is not None and end_date is not None:
-        try:
             d = d[(d['date'] >= start_date) & (d['date'] <= end_date)]
-        except Exception:
-            pass
     # ensure KPI columns exist cheaply (moved service_delivery_rate here to avoid startup load)
+    for col in ['integrity_risk_pct', 'age_18_greater', 'demo_age_17_', 'security_anomaly_score', 'age_5_17', 'bio_age_5_17', 'demo_age_5_17', 'bio_age_17_']:
+        if col not in d.columns:
+            d[col] = 0.0
+    # Compute integrity_risk_pct
     try:
         d['integrity_risk_pct'] = (d['integrity_score'] * 10).clip(0,100).round(2)
-    except Exception:
-        d['integrity_risk_pct'] = d.get('integrity_risk_pct', 0.0)
-    if 'service_delivery_rate' not in d.columns:
-        try:
-            d['service_delivery_rate'] = ((d.get('bio_age_5_17', 0) + d.get('demo_age_5_17', 0)) / (d.get('age_5_17', 0) + 1)) * 100
-        except Exception:
-            d['service_delivery_rate'] = 0.0
+    except:
+        d['integrity_risk_pct'] = 0.0
+    # Compute service_delivery_rate safely
+    try:
+        child_total = d['age_5_17'].fillna(0) + 1  # avoid div0
+        child_updates = d['bio_age_5_17'].fillna(0) + d['demo_age_5_17'].fillna(0)
+        d['service_delivery_rate'] = (child_updates / child_total) * 100
+    except:
+        d['service_delivery_rate'] = 0.0
     return d
 
 # --- UPDATE: additional cached aggregate builders to avoid recomputing heavy groupbys on reruns
@@ -250,15 +253,16 @@ def build_pulse_df(view_df):
 def build_heat_df(view_df):
     if view_df is None or view_df.empty:
         return pd.DataFrame()
-    heat_df = view_df.groupby('district').agg({
-        'age_18_greater': 'mean',
-        'service_delivery_rate': 'mean',
-        'demo_age_17_': 'mean',
-        'security_anomaly_score': 'mean'
-    }).tail(20)
+    needed_cols = ['district', 'age_18_greater', 'service_delivery_rate', 'demo_age_17_', 'security_anomaly_score']
+    available_cols = [c for c in needed_cols if c in view_df.columns]
+    if 'district' not in available_cols:
+        return pd.DataFrame()
+    agg_dict = {c: 'mean' for c in available_cols if c != 'district'}
+    heat_df = view_df.groupby('district').agg(agg_dict)
     if heat_df.empty:
         return pd.DataFrame()
-    heat_norm = (heat_df - heat_df.min()) / (heat_df.max() - heat_df.min())
+    # Normalize only available columns
+    heat_norm = (heat_df - heat_df.min()) / (heat_df.max() - heat_df.min() + 1e-8)  # avoid div0
     return heat_norm
 
 @st.cache_data(show_spinner=False)
