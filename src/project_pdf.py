@@ -89,7 +89,7 @@ class AadhaarSetuPDF(FPDF):
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'R')
 
 # --- 3. MEMORY-SAFE GENERATOR ---
-def generate_forensic_dossier(df, state_name, root_path, search_pin=None):
+def generate_forensic_dossier(df, state_name, root_path, search_pin=None,team_id="UIDAI_11060"):
     """
     CRITICAL OPTIMIZATION: This function now works with filtered dataframes
     passed from the dashboard (view_df), not the full dataset.
