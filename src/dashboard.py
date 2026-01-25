@@ -27,7 +27,7 @@ def reset_search():
     st.session_state.pincode_query = ""
 
 # --- 3. CSS---
-st.markdown(""")
+st.markdown("""
 <style>
     .main-title { 
         font-size: 2.8rem !important; 
@@ -74,7 +74,7 @@ st.markdown(""")
         color: #92400E;
     }
 </style>
-""", unsafe_allow_html=True
+""", unsafe_allow_html=True)
 
 
 # mapping for internal keys
