@@ -4,7 +4,6 @@
 
 Aadhaar Setu is an advanced data intelligence platform that processes millions of transactional records to identify administrative anomalies, diagnose behavioral fraud patterns, and deliver actionable intelligence for ground-level verification teams.
 
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://aadhaar-data-analysis-audit.streamlit.app)
 
 ## Live demo
 
@@ -16,7 +15,7 @@ Aadhaar Setu is an advanced data intelligence platform that processes millions o
 
 ---
 
-## Platform Summary
+## Project Overview
 
 Aadhaar Setu is a national-scale analytics platform built to convert large volumes of administrative data into clear, actionable audit intelligence. It ingests raw transactional metadata, normalizes inconsistent geographic identifiers, derives operational metrics, and applies unsupervised machine learning to identify unusual or high-risk patterns across regions.
 
@@ -43,39 +42,61 @@ Key characteristics:
 | PDF Engine        | FPDF2          | Custom AadhaarSetuPDF class for dossiers      |
 | Web Framework     | Streamlit      | Real-time dashboard with `@st.cache_resource` |
 
+#  The Three-Tier Architecture
+
+## 1. The Pincode Integrity Lock (PIL) Engine
+**Before analysis, the system runs a Geographic Self-Healing Engine.**  
+**Logic:** Standardizes fragmented naming metadata across millions of rows using a referential postal master list.  
+**Impact:** Ensures a single source of truth — e.g., a district recorded as both `SPSR Nellore` and `Nellore` will be merged automatically to prevent data dilution.
+
+## 2. The Forensic  Engine
+
+**Algorithm 1 — Isolation Forest**  
+An ensemble method that isolates anomalies rather than profiling normal data. It identifies pincodes with suspicious ratios of new adult entries versus maintenance velocity.
+
+**Algorithm 2 — K-Means Clustering**  
+Every identified anomaly is fingerprinted and grouped into behavioral archetypes:
+
+- **Identity Spoofing Risk:** High adult entry spikes  
+- **Maintenance Latency:** Biometric compliance gaps  
+- **Operational Velocity Anomaly:** Technical bulk-upload spikes
+
+## 3. The Regional Security Index (RSI)
+We developed the RSI (0–10 score). This metric balances enrollment spikes against maintenance health, enabling directors to prioritize audits based on forensic intensity rather than raw population size.
+
 ---
 
 ## System Architecture
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│                     Technology Stack                       │
-│ Core Technologies    | Component            | Purpose      │
-└────────────────────────────────────────────────────────────┘
-
-┌────────────────────────────────────────────────────────────┐
-│ Raw Data (CSV/Parquet)                                      │
-│ └─ "Schizophrenic" Locality Data                           │
-└────────────────────────────────────────────────────────────┘
-                      ↓
-┌────────────────────────────────────────────────────────────┐
-│ PIL Engine (cleaner.py)                                      │
-│ ├─ master_reference_healing()                                │
-│ └─ Golden Reference Merge (SSOT)                             │
-└────────────────────────────────────────────────────────────┘
-                      ↓
-┌────────────────────────────────────────────────────────────┐
-│ Forensic AI Pipeline                                         │
-│ ├─ Analysis Metrics (analysis.py)                            │
-│ ├─ K-Means Clustering (ml_analysis.py)                       │
-│ └─ Isolation Forest (ml_deep_analysis.py)                    │
-└────────────────────────────────────────────────────────────┘
-                      ↓
-┌────────────────────────────────────────────────────────────┐
-│ Intelligence Layer (dashboard.py)                            │
-│ ├─ Streamlit Interface (DuckDB Backend)                      │
-│ └─ PDF Dossier Generator (project_pdf.py)                    │
-└────────────────────────────────────────────────────────────┘
+                        ┌────────────────────────────────────────────────────────────┐
+                        │                     Technology Stack                       │
+                        │ Core Technologies    | Component            | Purpose      │
+                        └────────────────────────────────────────────────────────────┘
+                                              ↓
+                        ┌────────────────────────────────────────────────────────────┐
+                        │ Raw Data (CSV/Parquet)                                     │
+                        │ └─ "Schizophrenic" Locality Data                           │
+                        └────────────────────────────────────────────────────────────┘
+                                              ↓
+                        ┌────────────────────────────────────────────────────────────┐
+                        │ PIL Engine (cleaner.py)                                    │
+                        │ ├─ master_reference_healing()                              │
+                        │ └─ Golden Reference Merge (SSOT)                           │
+                        └────────────────────────────────────────────────────────────┘
+                                              ↓
+                        ┌────────────────────────────────────────────────────────────┐
+                        │ Forensic AI Pipeline                                       │
+                        │ ├─ Analysis Metrics (analysis.py)                          │
+                        │ ├─ K-Means Clustering (ml_analysis.py)                     │
+                        │ └─ Isolation Forest (ml_deep_analysis.py)                  │
+                        └────────────────────────────────────────────────────────────┘
+                                              ↓
+                        ┌────────────────────────────────────────────────────────────┐
+                        │ Intelligence Layer (dashboard.py)                          │
+                        │ ├─ Streamlit Interface (DuckDB Backend)                    │
+                        │ └─ PDF Dossier Generator (project_pdf.py)                  │
+                        └────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -86,7 +107,7 @@ Key characteristics:
 **Prerequisites**
 
 * Python 3.12 or higher
-* 8GB RAM minimum (16GB recommended for full dataset)
+* 4GB RAM minimum 
 * Git
 
 **Quick Start**
@@ -111,14 +132,17 @@ python src/analysis.py
 python src/ml_analysis.py
 python src/ml_deep_analysis.py
 
-# 3. Launch the Dashboard
+# 3. PDF Report
+python src/project_pdf.py
+
+# 4. Launch the Dashboard
 streamlit run src/dashboard.py
 ```
 
 **Dependencies**
 
 ```
-streamlit>=1.31.0
+streamlit>=1.52.2
 pandas>=2.0.0
 numpy>=1.24.0
 plotly>=5.14.0
@@ -137,25 +161,44 @@ pillow>=10.0.0
 1. **Sidebar Controls**
 
    * State Filter: `sel_state` (Selects specific state or "INDIA").
-   * Risk Profile Filters: Toggle Adult Entry Spikes, Child Biometric Lags, etc.
+   * Risk Profile Filters: Adult Entry Spikes, Child Biometric Lags, etc.
    * Date Range: Select "From" and "To" months for temporal analysis.
    * Pincode Enquiry: Enter 6-digit PIN for Deep Scan.
+   * Download Report: Generates confidential PDF dossie 
 
 2. **Tab Organization**
 
-   * **Tab 1:** Executive Overview: Administrative Pulse, Service Demand Split.
+   * **Tab 1:**
+     ***Executive Overview:***
+        - Administrative Pulse.
+        - Service Demand Split.
+        - KPI Command Row
+   * **Tab 2:**
+     ***ML-Powered Insights***
+       - Static Charts (National baselines from ML pipeline)
+      - Live DNA Heatmap (District-level forensic fingerprinting
+      - Threat Signatures
+    * **Tab 3:**
+      ***Strategic Action :***
+        - Root-Cause Analysis (Feature importance + policy zones)
+        - Risk Driver Impact Chart (Live volume analysis)
+        - High-Priority Audit List (Top 45 flagged sites)
+        - CSV Export (Field work order download)
+    * **Tab 4:**
+        ***Operational Analysis***
+      -  National Baselines (Static benchmarks)
+      -  Pressure Index State-District (Live calculation)
+    * **Tab 5:**
+      ***Pincode Drilldown***
+      - Pincode Search (6-digit input + form submission)
+      - 15-PIN Cluster Chart (Risk hierarchy within district)
+      - Field Evidence Table
 
 3. **Export Options**
 
-   * PDF Report: Full "National Integrity Audit Dossier" via `project_pdf.py`.
-   * CSV Audit Plan: Field work orders with "Recommended Action".
-   * Pincode Work Order: Cluster-specific verification tasks.
-
-**Live Dashboard**
-
-* View the live dashboard: [https://aadhaar-data-analysis-audit.streamlit.app](https://aadhaar-data-analysis-audit.streamlit.app)
-
-> **NOTE:** The dashboard is hosted on Streamlit's free tier and may occasionally crash or run out of memory. If the site is down, please email `perimilisunil@gmail.com` and I will restart the app and ensure it runs as expected.
+   - PDF Report: Full "National Integrity Audit Dossier" via `project_pdf.py`.
+   - CSV Audit Plan: Field work orders with "Recommended Action".
+   - Pincode Work Order: Cluster-specific verification tasks.
 
 ---
 
@@ -174,12 +217,12 @@ zone_data = df[df['integrity_score'] > 8]
 # Generate Evidence Dossier
 pdf_bytes = generate_forensic_dossier(
     df=zone_data,
-    state_name="Maharashtra",
+    state_name="Andhra Pradesh",
     root_path=".",
     team_id="UIDAI_11060"
 )
 
-with open('Maharashtra_Audit.pdf', 'wb') as f:
+with open('AadhaarSetu_Audit_Report.pdf', 'wb') as f:
     f.write(pdf_bytes)
 ```
 
