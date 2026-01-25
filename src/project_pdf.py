@@ -89,7 +89,7 @@ class AadhaarSetuPDF(FPDF):
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'R')
 
 # --- 3. MEMORY-SAFE GENERATOR ---
-def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_id="UIDAI_11060"):
+def generate_forensic_dossier(df, state_name, root_path, search_pin=None):
     """
     CRITICAL OPTIMIZATION: This function now works with filtered dataframes
     passed from the dashboard (view_df), not the full dataset.
@@ -234,9 +234,17 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
             pdf.image(ensure_image_size(ui_img), x=30, w=180)
         pdf.set_y(160)
         pdf.set_font('Helvetica','',12)
-        pdf.multi_cell(180, 8, clean_text('The dashboard confirms the system is live and tracking over 2.2 million records. It displays key metrics, including a 92.4% integrity score and 13,969 high-risk sites that need attention. Administrators can use the sidebar to filter data. The main charts clearly identify states with the most suspicious activity, specifically highlighting states like MAHARASHTRA and ASSAM . It also ranks the primary causes of these risks using machine learning categories. The interface updates instantly to show how these risks affect different regions.
-            This tool effectively turns complex data into a clear action plan for field operations.'))
-        ))
+        dashboard_desc = (
+            "The dashboard confirms the system is live and tracking over 2.2 million records. "
+            "It displays key metrics, including a 92.4% integrity score and 13,969 high-risk "
+            "sites that need attention. Administrators can use the sidebar to filter data. "
+            "The main charts clearly identify states with the most suspicious activity, "
+            "specifically highlighting states like MAHARASHTRA and ASSAM. It also ranks the "
+            "primary causes of these risks using machine learning categories. The interface "
+            "updates instantly to show how these risks affect different regions. This tool "
+            "effectively turns complex data into a clear action plan for field operations."
+        )
+        pdf.multi_cell(180, 8, clean_text(dashboard_desc))
         pdf.add_page();
         pdf.set_font('Helvetica', '', 20);
         pdf.cell(0, 20, "15. Heatmap Intelligence Proof", 0, 1)
@@ -244,10 +252,19 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
         if os.path.exists(st_img2): pdf.image(ensure_image_size(st_img2), x=30, w=180)
         pdf.set_y(160);
         pdf.set_font('Helvetica','',12)
-        pdf.multi_cell(180, 8, clean_text('The Regional Integrity Hierarchy visualization functions as a heat map for state-level surveillance, specifically isolating high-variance districts within Uttar Pradesh.
-            By utilizing a divergent color scale representing Relative Risk %, the heatmap immediately distinguishes compliant zones from critical administrative anomalies; notably, districts such as Sitapur, Bareilly, and Shahjahanpur are rendered in deep crimson, indicating risk saturation levels approaching the 20% upper threshold. Conversely, regions like Ayodhya and Lucknow appear in low-risk gradients, establishing a clear baseline for comparative analysis.
-            This spatial data is corroborated by the Administrative Pulse temporal graph below, which tracks the intersection of MBU Compliance Efficiency—peaking in September 2025—against fluctuating Risk Intensity trends.
-            This dual-layer visibility empowers regional managers to bypass low-priority areas and dynamically re-route field audit teams directly to the Red Zone hotspots identified in the treemap, optimizing the deployment of limited ground assets.'))
+        heatmap_desc = (
+            "The Regional Integrity Hierarchy visualization functions as a heat map for state-level surveillance, "
+            "specifically isolating high-variance districts. By utilizing a divergent color scale representing "
+            "Relative Risk %, the heatmap immediately distinguishes compliant zones from critical administrative "
+            "anomalies; notably, districts with high-intensity profiles are rendered in deep crimson, indicating "
+            "risk saturation levels approaching the threshold. Conversely, regions in low-risk gradients "
+            "establish a clear baseline for comparative analysis. This spatial data is corroborated by the "
+            "Administrative Pulse temporal graph, which tracks the intersection of MBU Compliance Efficiency "
+            "against fluctuating Risk Intensity trends. This dual-layer visibility empowers regional managers "
+            "to bypass low-priority areas and dynamically re-route field audit teams directly to the "
+            "Red Zone hotspots identified in the treemap, optimizing the deployment of limited ground assets."
+        )
+        pdf.multi_cell(180, 8, clean_text(heatmap_desc))
         # --- INNOVATION CASE STUDY ---
         pdf.add_page()
         pdf.set_font('Helvetica', 'B', 20)
