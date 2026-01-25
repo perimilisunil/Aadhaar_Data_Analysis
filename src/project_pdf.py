@@ -319,8 +319,8 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
 
         # --- SOURCE CODE (OPTIMIZED) ---
         # OPTIMIZATION: Only include dashboard.py to save memory
-        code_files = [("dashboard.py", "Interface Controller")]
-        
+        code_files = [("cleaner.py", "ETL Engine"), ("ml_deep_analysis.py", "Risk Engine "), ("dashboard.py", "Interface controller")]
+
         for fname, fshort in code_files:
             pdf.add_page()
             pdf.set_font('Helvetica', 'B', 22)
