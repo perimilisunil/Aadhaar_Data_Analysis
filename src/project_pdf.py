@@ -192,8 +192,8 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
             ("ML_Anomaly_charts/07_ml_dna_scorecard.png", "9. Chart 7: DNA Risk Heatmap", "- Normalized matrix of cluster-driver intersections.\n- Facilitates rapid pattern spotting for triage.", "Analysis: The DNA Heatmap provides a high-density view of how behavioral clusters interact with forensic metrics. By normalizing each column, we ensure that small-scale fraud is visible alongside large-scale trends. It allows triage teams to spot 'Metric Pairing' - where high adult registration meets low child compliance. This specific pairing is a high-confidence indicator of identity spoofing. The heatmap acts as the training baseline for our automated flagging logic, ensuring that the prescribed actions are based on a statistically significant intersection of forensic evidence. During a field audit, an officer can use this heatmap to see exactly which Driver is most corrupted in their specific cluster."),
             ("Deep_Analysis/08_global_feature_importance.png", "10. Chart 8: Risk Driver Impact", "- Measures the weight of each driver in the pool.\n- Identifies the primary cause of national anomalies.", "Analysis: This chart identifies what is breaking the national integrity system. If the primary driver is Child Biometric Lags, then the national strategy must pivot to MBU camps. If it is Adult Entry Spikes, the strategy must pivot to manual document verification. By identifying the dominant driver across Million records, we provide the UIDAI with a clear National Priority. It prevents regional offices from wasting resources on low-impact fixes and focuses the entire organization on the most significant threats to database integrity. This is the Executive Summary of our Machine Learning findings, telling the jury exactly which features of the dataset are the most predictive of risk."),
             ("Deep_Analysis/09_state_anomaly_concentration.png", "11. Chart 9: Regional Anomaly Concentration", "- Maps geographic density of suspicious sites.\n- Exposes risk corridors across state borders.", "Analysis: The concentration map reveals Fraud Corridors. Often, administrative anomalies move across borders due to migration or shared operator networks. This visual allows the UIDAI to see if a risk is localized to one rogue operator or systemic to a whole state. This insight is vital for border districts and high-migration states. It allows for Cluster Auditing where multiple centers in a geographic corridor are audited simultaneously to prevent the movement of illicit activity. It also assists in logistics planning for mobile update units, ensuring they are sent to the center of the highest-density risk clusters."),
-            ("Deep_Analysis/10_final_audit_summary.png", "12. Chart 10: Executive Audit Master-List", "- High-priority table for regional verification.\n- Directly links ML scores to physical pincodes.", "Analysis: Chart 10 is the execution layer of Aadhaar Setu. It is the final result of the entire Million record analysis. It lists the top sites identified by the Isolation Forest model as requiring immediate field intervention. For each site, it provides the RSI score and the forensic diagnosis. This is the canonical document that a Regional Director hands to their field audit team. It moves the project from the dashboard into the real world. By providing a clear, ranked, and diagnosed list, it eliminates administrative guesswork and ensures that every field visit has a high probability of success."),
-            ("Deep_Analysis/11_strategic_portfolio.png", "13. Chart 11: Strategic Portfolio", "- Classifies districts into four deployment zones.\n- Guides long-term infrastructure and training policy.", "Analysis: Chart 11 is the long-term policy roadmap. It classifies jurisdictions into four quadrants based on their Integrity Score and Engagement Level. Zone A districts require forensic audits; Zone D districts require awareness camps. This chart is used for long-term planning (1-3 years). It helps the UIDAI decide where to build new permanent centers and where to retire legacy enrolment kits. It is the ultimate proof of our system's ability to act as a Decision Support System (DSS) for the highest levels of government, transforming complex data into a clear administrative strategy.")
+            ("Deep_Analysis/10_final_audit_summary.png", "12. Chart 10: Executive Audit Master-List", "- High-priority table for regional verification.\n- Directly links ML scores to physical pincodes.", "Analysis: This is the execution layer of Aadhaar Setu. It is the final result of the entire Million record analysis. It lists the top sites identified by the Isolation Forest model as requiring immediate field intervention. For each site, it provides the RSI score and the forensic diagnosis. This is the canonical document that a Regional Director hands to their field audit team. It moves the project from the dashboard into the real world. By providing a clear, ranked, and diagnosed list, it eliminates administrative guesswork and ensures that every field visit has a high probability of success."),
+            ("Deep_Analysis/11_strategic_portfolio.png", "13. Chart 11: Strategic Portfolio", "- Classifies districts into four deployment zones.\n- Guides long-term infrastructure and training policy.", "Analysis: Here it is the long-term policy roadmap. It classifies jurisdictions into four quadrants based on their Integrity Score and Engagement Level. Zone A districts require forensic audits; Zone D districts require awareness camps. This chart is used for long-term planning (1-3 years). It helps the UIDAI decide where to build new permanent centers and where to retire legacy enrolment kits. It is the ultimate proof of our system's ability to act as a Decision Support System (DSS) for the highest levels of government, transforming complex data into a clear administrative strategy.")
         ]
 
         for path, title, bullets, para in essential_charts:
@@ -227,12 +227,13 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
 
         # --- DASHBOARD PROOFS ---
         pdf.add_page()
-        pdf.set_font('Helvetica', 'B', 20)
+        pdf.set_font('Helvetica', '', 20)
         pdf.cell(0, 20, "14. Dashboard Interactivity Proof", 0, 1)
         ui_img = os.path.join(root_path, "output", "charts", "dashboard_ui.png")
         if os.path.exists(ui_img): 
             pdf.image(ensure_image_size(ui_img), x=30, w=180)
         pdf.set_y(160)
+        pdf.set_font('Helvetica','',12)
         pdf.multi_cell(180, 8, clean_text(
             "The Dashboard screenshot verifies the system's live command interface. "
             "It demonstrates the recalculation of KPIs for the full record cache. "
@@ -244,10 +245,11 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
         st_img2 = os.path.join(root_path, "output", "charts", "state_evidence_map.png")
         if os.path.exists(st_img2): pdf.image(ensure_image_size(st_img2), x=30, w=180)
         pdf.set_y(160);
+        pdf.set_font('Helvetica','',12)
         pdf.multi_cell(180, 8, clean_text("The state-level heatmap identifies localized DNA signatures. A dark red cell indicates a high-priority administrative anomaly. This visual provides regional managers with the Ground Reality needed to optimize field routes effectively."))
         # --- INNOVATION CASE STUDY ---
         pdf.add_page()
-        pdf.set_font('Helvetica', '', 20)
+        pdf.set_font('Helvetica', 'B', 20)
         pdf.cell(0, 20, "16. Innovation: Security Pivot", 0, 1)
         
         # Use limited sample for table
@@ -272,14 +274,14 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
                 'integrity_risk_pct', ascending=False
             ).head(8)
             
-            table_data = [("PINCODE", "DISTRICT", "RISK %", "ML DIAGNOSIS", "ACTION")]
+            table_data = [("PINCODE", "DISTRICT", "RISK %", "ML DIAGNOSIS", "REQUIRED ACTION")]
             for _, row in dist_all.iterrows():
                 table_data.append((
                     safe_pincode(row['pincode']), 
                     str(row['district'])[:20],  # Truncate long names
                     f"{row['integrity_risk_pct']:.1f}%", 
                     str(row.get('risk_diagnosis', 'N/A'))[:25],  # Truncate
-                    "Audit Logs"
+                    str(row.get('action_map'))
                 ))
 
             with pdf.table(
@@ -314,8 +316,7 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
             "Logic: Unsupervised ML removes demographic bias.\n"
             "Maintenance: commits to one-year support.\n"
             "Provenance: Official UIDAI datasets.")
-        
-        pdf.cell(0, 9, "Technical provenance and full source code repository: github.com/perimilisunil/Aadhaar_Data_Analysis")
+        pdf.cell(0, 10, "Technical provenance and full source code repository: github.com/perimilisunil/Aadhaar_Data_Analysis",0,1,'C')
 
         # --- SOURCE CODE (OPTIMIZED) ---
         # OPTIMIZATION: Only include dashboard.py to save memory
