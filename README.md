@@ -1,182 +1,37 @@
-# 🛡️ Aadhaar Setu: National Integrity Audit & Forensic Intelligence Suite
+#  Aadhaar Setu: National Integrity Audit & Forensic Intelligence Suite
 
 > **A production-grade forensic analytics engine for safeguarding Digital Public Infrastructure (DPI) at national scale.**
 
 Aadhaar Setu is an advanced data intelligence platform that processes millions of transactional records to identify administrative anomalies, diagnose behavioral fraud patterns, and deliver actionable intelligence for ground-level verification teams.
 
----
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://aadhaar-data-analysis-audit.streamlit.app)
 
-## 🎯 Problem Statement
+## Live demo
 
-In databases managing 1.3+ billion identities, traditional audit methodologies face critical challenges:
+🔗 **Dashboard (Live):** [https://aadhaar-data-analysis-audit.streamlit.app](https://aadhaar-data-analysis-audit.streamlit.app)
 
-1. **The Scale Paradox**
-
-   * **Geographic Fragmentation:** Inconsistent naming conventions (e.g., "Gurgaon" vs "Gurugram") corrupt jurisdictional analysis.
-   * **Noise-to-Signal Ratio:** National aggregates mask hyper-local security breaches.
-   * **Linear Threshold Failures:** Rule-based systems miss sophisticated non-linear anomalies.
-
-2. **The Action Gap**
-
-   * Data analysis without operational directives creates a disconnect between insights and ground-level execution.
+> **NOTE:** The dashboard is hosted on Streamlit's free tier and may occasionally crash or run out of memory.
+> If the site is down, please email `perimilisunil@gmail.com` and I will restart the app and ensure it runs as expected.
+> For better experience switch to **LIGHT MODE**
 
 ---
 
-## 💡 Solution Architecture
+## Platform Summary
 
-Aadhaar Setu implements a three-tier intelligence pipeline powered by **6 specialized Python modules**:
+Aadhaar Setu is a national-scale analytics platform built to convert large volumes of administrative data into clear, actionable audit intelligence. It ingests raw transactional metadata, normalizes inconsistent geographic identifiers, derives operational metrics, and applies unsupervised machine learning to identify unusual or high-risk patterns across regions.
 
-### 1. 🔒 Pincode Integrity Lock (PIL) Engine
+The system is designed for real-world operations rather than research output. Its primary goal is to help administrators answer three practical questions: *Where should we look? What is abnormal? What action should be taken first?* The pipeline produces ranked risk lists, district and pincode level summaries, and exportable work orders that can be directly used by field teams.
 
-**Source:** `cleaner.py`
+Key characteristics:
 
-**Geographic Self-Healing System**
-
-* Standardizes 15,000+ postal codes using `all_india_pincode.csv` as the Golden Reference.
-* Merges fragmented locality metadata (e.g., "SPSR Nellore" → "Nellore") via `master_reference_healing`.
-* Ensures Single Source of Truth (SSOT) across jurisdictional boundaries.
-
-**Technical Implementation:**
-
-```python
-# Source: src/cleaner.py
-import pandas as pd
-
-def master_reference_healing(df, master_df):
-    """
-    Replaces 'Schizophrenic' raw data with 'Ground Truth' from Master File.
-    """
-    # 1. Prepare Pincodes for a perfect join
-    df['pincode'] = df['pincode'].astype(str).str.zfill(6)
-
-    # 2. DROP messy state/district columns from raw data
-    cols_to_drop = [c for c in ['state', 'district', 'statename'] if c in df.columns]
-    df = df.drop(columns=cols_to_drop)
-
-    # 3. JOIN with the Golden Reference
-    df = pd.merge(df, master_df, on='pincode', how='left')
-    return df
-```
+* End-to-end pipeline from raw data to deployable audit outputs.
+* Scales to millions of records using DuckDB and columnar storage.
+* Privacy-first design operating only on aggregated, non-PII metadata.
+* Outputs focused on operations: ranked targets, dashboards, and downloadable reports.
 
 ---
 
-### 2. 🤖 Forensic AI Engine
-
-**Source:** `ml_deep_analysis.py` & `ml_analysis.py`
-
-**Unsupervised Anomaly Detection**
-
-**Algorithm 1: Isolation Forest (`ml_deep_analysis.py`)**
-
-* Ensemble method that isolates anomalies rather than profiling normal behavior.
-* Identifies suspicious patterns in adult enrollment vs. maintenance ratios.
-* Contamination: 5% (Optimized for precision-recall).
-
-**Algorithm 2: K-Means Behavioral Clustering (`ml_analysis.py`)**
-
-* Fingerprints anomalies into three behavioral archetypes:
-
-  * **High-Risk (Fraud):** High anomaly scores.
-  * **Service Gap (Children):** Low service delivery rates.
-  * **Active/Migration Zones:** Normal operational variance.
-
-**Technical Stack:** Python
-
-```python
-# Source: src/ml_deep_analysis.py
-from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import StandardScaler
-import numpy as np
-
-# 1. Feature Selection
-features = ['age_18_greater', 'demo_age_17_', 'service_delivery_rate', 'security_anomaly_score']
-
-# X is assumed to be the features matrix for training
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(df[features])
-
-# 2. Isolation Forest Training
-model = IsolationForest(contamination=0.05, random_state=42)
-df['anomaly_signal'] = model.fit_predict(X_scaled)
-
-# 3. Integrity Score Calculation (0-10 Scale)
-raw_scores = model.decision_function(X_scaled)
-df['integrity_score'] = np.interp(raw_scores, (raw_scores.min(), raw_scores.max()), (10, 0)).round(2)
-```
-
----
-
-### 3. 📊 Regional Security Index (RSI)
-
-**Source:** `analysis.py` & `ml_deep_analysis.py`
-
-* Composite Risk Metric (0-10 Scale)
-* Balances enrollment velocity against maintenance health.
-* Calculates `security_anomaly_score` based on `age_18_greater` vs `demo_age_17_` ratios.
-* Enables prioritization based on forensic intensity rather than raw volume.
-
----
-
-## 🖥️ Interactive Command Center
-
-**Source:** `dashboard.py`
-
-**Dashboard Features**
-
-* **Executive Overview**
-* **Temporal Pulse Analysis:** Combo chart tracking "Risk Intensity" vs "MBU Compliance" over time.
-* **National Risk Treemap:** Hierarchical visualization of 2.2M+ records.
-* **Service Demand Distribution:** Lifecycle segmentation (Infants/Children/Adults).
-
-**Behavioral DNA Module**
-
-* Threat Radar Charts: Generated via `ml_analysis.py` to visualize cluster deviations.
-* Forensic Heatmaps: Normalized cluster-driver intersections.
-
-**Strategic Action Portfolio**
-
-* Four-Quadrant Classification: Divides districts into Zones A (Forensic Audit), B (Ghost ID Alerts), C (Model Districts), and D (Awareness Camps).
-* High-Priority Audit List: ML-ranked field verification targets sorted by `integrity_risk_pct`.
-
-**Tactical Pincode Search**
-
-* Deep Scan Dossier: 15-PIN cluster analysis logic.
-* Security Pivot Engine: Automated citizen rerouting to safe pincodes based on local cluster scores.
-
----
-
-## 📄 Automated Forensic Dossiers
-
-**Source:** `project_pdf.py`
-
-**The Linear Evidence Chain**
-
-Our PDF generation engine (AadhaarSetuPDF) constructs a multi-section confidential report following investigative narrative principles:
-
-1. Initiation: Regional RSI score and alert classification.
-2. Timeline: Temporal pressure windows.
-3. Landscape: Comparative national benchmarking.
-4. Profiling: Behavioral DNA radar signatures.
-5. Methodology: Technical algorithm transparency.
-6. Confrontation: Actionable field directives.
-7. Resolution: Technical compliance and code appendix.
-
-**Export Sample:**
-
-```python
-# From dashboard.py calling project_pdf.py
-pdf_bytes = generate_forensic_dossier(
-    df=df,
-    state_name=sel_state,
-    root_path=root_path,
-    search_pin=st.session_state.pincode_query,
-    team_id="UIDAI_11060"
-)
-```
-
----
-
-## 🚀 Technology Stack
+##  Technology Stack
 
 | Core Technologies | Component      | Purpose                                       |
 | ----------------- | -------------- | --------------------------------------------- |
@@ -193,26 +48,40 @@ pdf_bytes = generate_forensic_dossier(
 ## System Architecture
 
 ```
-Raw Data (CSV/Parquet)
-└─ "Schizophrenic" Locality Data
-    ↓
-PIL Engine (cleaner.py)
-├─ master_reference_healing()
-└─ Golden Reference Merge (SSOT)
-    ↓
-Forensic AI Pipeline
-├─ Analysis Metrics (analysis.py)
-├─ K-Means Clustering (ml_analysis.py)
-└─ Isolation Forest (ml_deep_analysis.py)
-    ↓
-Intelligence Layer (dashboard.py)
-├─ Streamlit Interface (DuckDB Backend)
-└─ PDF Dossier Generator (project_pdf.py)
+┌────────────────────────────────────────────────────────────┐
+│                     Technology Stack                       │
+│ Core Technologies    | Component            | Purpose      │
+└────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────┐
+│ Raw Data (CSV/Parquet)                                      │
+│ └─ "Schizophrenic" Locality Data                           │
+└────────────────────────────────────────────────────────────┘
+                      ↓
+┌────────────────────────────────────────────────────────────┐
+│ PIL Engine (cleaner.py)                                      │
+│ ├─ master_reference_healing()                                │
+│ └─ Golden Reference Merge (SSOT)                             │
+└────────────────────────────────────────────────────────────┘
+                      ↓
+┌────────────────────────────────────────────────────────────┐
+│ Forensic AI Pipeline                                         │
+│ ├─ Analysis Metrics (analysis.py)                            │
+│ ├─ K-Means Clustering (ml_analysis.py)                       │
+│ └─ Isolation Forest (ml_deep_analysis.py)                    │
+└────────────────────────────────────────────────────────────┘
+                      ↓
+┌────────────────────────────────────────────────────────────┐
+│ Intelligence Layer (dashboard.py)                            │
+│ ├─ Streamlit Interface (DuckDB Backend)                      │
+│ └─ PDF Dossier Generator (project_pdf.py)                    │
+└────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📦 Installation & Setup
+
+##  Installation & Setup
 
 **Prerequisites**
 
@@ -261,7 +130,7 @@ pillow>=10.0.0
 
 ---
 
-## 🎮 Usage Guide
+##  Usage Guide
 
 **Dashboard Navigation**
 
@@ -275,16 +144,18 @@ pillow>=10.0.0
 2. **Tab Organization**
 
    * **Tab 1:** Executive Overview: Administrative Pulse, Service Demand Split.
-   * **Tab 2:** Behavioral DNA: Chart 5 (Threat Radar), Chart 6 (Forensic Scorecard), Chart 7 (DNA Heatmap).
-   * **Tab 3:** Strategic Action: Chart 11 (Policy Zones), Chart 10 (Audit Master-List).
-   * **Tab 4:** Risk Drivers: Chart 8 (Global Drivers), Chart 9 (Concentration), Friction Analysis.
-   * **Tab 5:** Pincode Drilldown: 15-PIN Cluster Analysis & Security Pivot.
 
 3. **Export Options**
 
    * PDF Report: Full "National Integrity Audit Dossier" via `project_pdf.py`.
    * CSV Audit Plan: Field work orders with "Recommended Action".
    * Pincode Work Order: Cluster-specific verification tasks.
+
+**Live Dashboard**
+
+* View the live dashboard: [https://aadhaar-data-analysis-audit.streamlit.app](https://aadhaar-data-analysis-audit.streamlit.app)
+
+> **NOTE:** The dashboard is hosted on Streamlit's free tier and may occasionally crash or run out of memory. If the site is down, please email `perimilisunil@gmail.com` and I will restart the app and ensure it runs as expected.
 
 ---
 
@@ -314,33 +185,33 @@ with open('Maharashtra_Audit.pdf', 'wb') as f:
 
 ---
 
-## 📊 Key Features
+##  Key Features
 
-### ✅ Data Intelligence
+###  Data Intelligence
 
 * [x] PIL Engine (`cleaner.py`): "Nuclear Healing" of pincode/district mismatches.
 * [x] Metrics (`analysis.py`): Calculates `service_delivery_rate` and `security_anomaly_score`.
 * [x] Performance: Uses DuckDB for sub-second queries on 2.2M+ records.
 
-### ✅ Machine Learning
+###  Machine Learning
 
 * [x] Isolation Forest (`ml_deep_analysis.py`): 5% contamination threshold for anomaly detection.
 * [x] K-Means Clustering (`ml_analysis.py`): segments districts into "High-Risk", "Service Gap", "Migration Zones".
 * [x] Root Cause: Feature importance analysis for primary risk drivers.
 
-### ✅ Visualization
+###  Visualization
 
 * [x] Interactive Charts: Plotly Treemaps, Radar Charts (`go.Scatterpolar`), and Ribbon Charts.
 * [x] Operational Friction: Visualizes workload vs. security pressure.
 * [x] DNA Scorecard: Heatmap of normalized forensic values.
 
-### ✅ Operational Intelligence
+###  Operational Intelligence
 
 * [x] Automated Reporting (`project_pdf.py`): Generates 20+ page investigative PDFs.
 * [x] Tactical Pivot: "Target-in-middle" cluster logic for field rerouting.
 * [x] Strategic Zones: Classification into Zones A, B, C, D for policy planning.
 
-### ✅ Production Readiness
+###  Production Readiness
 
 * [x] Streamlit Optimization: Uses `@st.cache_data` and memory management.
 * [x] Robust Error Handling: Safe mode for missing images/data in PDF generation.
@@ -348,7 +219,7 @@ with open('Maharashtra_Audit.pdf', 'wb') as f:
 
 ---
 
-## ⚖️ Privacy & Compliance
+##  Privacy & Compliance
 
 **Data Protection Principles**
 
@@ -359,7 +230,7 @@ with open('Maharashtra_Audit.pdf', 'wb') as f:
 
 ---
 
-## 🗂️ Project Structure
+##  Project Structure
 
 ```
 Aadhaar_Data_Analysis/
@@ -386,7 +257,7 @@ Aadhaar_Data_Analysis/
 
 ---
 
-## 🎯 Performance Benchmarks
+##  Performance Benchmarks
 
 **System Metrics (Streamlit Cloud - Free Tier)**
 
@@ -409,13 +280,13 @@ Aadhaar_Data_Analysis/
 
 ## 🛠️ Development Roadmap
 
-**Phase 1: Foundation ✅**
+**Phase 1: Foundation**
 
 * [x] PIL Engine implementation (`cleaner.py`).
 * [x] Basic metric calculation (`analysis.py`).
 * [x] PDF report generation (`project_pdf.py`).
 
-**Phase 2: Intelligence ✅**
+**Phase 2: Intelligence**
 
 * [x] K-Means behavioral clustering (`ml_analysis.py`).
 * [x] Isolation Forest anomaly detection (`ml_deep_analysis.py`).
@@ -431,7 +302,7 @@ Aadhaar_Data_Analysis/
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 Contributions are welcome! Please follow these guidelines:
 
@@ -443,7 +314,7 @@ Contributions are welcome! Please follow these guidelines:
 
 ---
 
-## 📜 License
+##  License
 
 This project is licensed under the MIT License - see the `LICENSE` file for details.
 
@@ -456,7 +327,7 @@ This project is licensed under the MIT License - see the `LICENSE` file for deta
 
 ---
 
-## 🏆 Acknowledgments
+##  Acknowledgments
 
 **Built For:** National Aadhaar Hackathon 2026
 
@@ -469,8 +340,9 @@ This project is licensed under the MIT License - see the `LICENSE` file for deta
 
 **Special Recognition:** Developed with a commitment to privacy-first design and operational excellence in public sector technology.
 
+
 ---
-## 📞 Contact & Support
+##  Contact & Support
 
 ### Project Maintainer
 **Sunil Kumar**  
