@@ -84,13 +84,14 @@ label_fix = {
     'demo_age_17_': 'Activity Bursts', 
     'security_anomaly_score': 'Suspicious Creation'
 }
-
+# --- 4. DEFINE ROOT PATH GLOBALLY ---
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# --- 4. CONFIGURATION: Sample Rate ---
-sample_rate = 40
 
-# --- 5. OPTIMIZED DATA LOADING ---
-@st.cache_data(ttl=1800, show_spinner="Loading audit data...")
+# --- 5. CONFIGURATION: Sample Rate ---
+SAMPLE_RATE = 40  # Adjust this to balance performance vs data completeness
+
+# --- 6. OPTIMIZED DATA LOADING (MULTI-USER SAFE) ---
+@st.cache_resource(ttl=1800, show_spinner="Loading audit data...")
 def load_data():
     """
     Uses @st.cache_resource to share data across ALL users (saves memory).
@@ -101,7 +102,7 @@ def load_data():
     master_path = os.path.join(project_root, "datasets", "pincode_master_clean.csv")
     
     if not os.path.exists(audit_path): 
-        return None,0
+        return None, 0
     
     # CRITICAL: Use context manager to auto-close DuckDB connection
     with duckdb.connect(database=':memory:') as con:
@@ -112,7 +113,7 @@ def load_data():
             UNION ALL
             SELECT * FROM read_parquet('{audit_path}')
             WHERE integrity_score <= 5
-            USING SAMPLE {sample_rate} (bernoulli)
+            USING SAMPLE {SAMPLE_RATE} (bernoulli)
         """
         df = con.execute(query).df()
         con.close()
@@ -154,10 +155,10 @@ def load_data():
     df['risk_diagnosis'] = df['primary_risk_driver'].map(label_map).fillna("Systemic Risk")
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     
-    return df,sample_rate
+    return df, SAMPLE_RATE
 
-# --- 6. LOAD DATA ---
-df,sample_rate = load_data()
+# --- 7. LOAD DATA ---
+df, sample_rate = load_data()
 
 # STOP if data fails to load
 if df is None:
@@ -171,7 +172,7 @@ df = df.copy()
 df_size_mb = sys.getsizeof(df) / 1_000_000
 total_records = len(df)
 
-# --- 6. DATA TRANSPARENCY BANNER ---
+# --- 8. DATA TRANSPARENCY BANNER ---
 st.markdown(f"""
 <div class="data-disclaimer">
     <strong>Data Sampling Notice:</strong> This dashboard displays <strong>{sample_rate}% of the complete dataset</strong> 
@@ -181,7 +182,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- 7. SIDEBAR ---
+# --- 9. SIDEBAR ---
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/en/thumb/c/cf/Aadhaar_Logo.svg/1200px-Aadhaar_Logo.svg.png", width=120)
     st.markdown("---")
@@ -192,7 +193,7 @@ with st.sidebar:
     # Session tracking
     if 'session_id' not in st.session_state:
         st.session_state.session_id = id(st.session_state)
-    st.caption(f"🔗 Session: {str(st.session_state.session_id)[-6:]}")
+    st.caption(f"Session: {str(st.session_state.session_id)[-6:]}")
     
     st.markdown("---")
     
@@ -287,7 +288,7 @@ with st.sidebar:
     
     # Warning for large datasets
     if len(view_df) > 100000:
-        st.warning(f"⚠️ Large dataset ({len(view_df):,} rows). PDF may take 30-60 seconds.")
+        st.warning(f"Large dataset ({len(view_df):,} rows). PDF may take 30-60 seconds.")
     
     if st.button("Download Report"):
         try:
@@ -303,7 +304,7 @@ with st.sidebar:
                 
                 if pdf_bytes:
                     st.download_button(
-                        label="📥 Download Submission PDF",
+                        label=" Download Submission PDF",
                         data=pdf_bytes,
                         file_name=f"AadhaarSetu_ProjectReport.pdf",
                         mime="application/pdf"
@@ -312,7 +313,7 @@ with st.sidebar:
                 else:
                     st.warning("PDF generation returned empty.")
         except MemoryError:
-            st.error("⚠️ Memory limit exceeded. Try filtering to a smaller region or date range.")
+            st.error("Memory limit exceeded. Try filtering to a smaller region or date range.")
         except Exception as e:
             st.error(f"System Error: {str(e)}")
 
@@ -336,7 +337,7 @@ with k6:
 
 st.markdown("---")
 
-# --- 9. TABS ---
+# --- 10. TABS ---
 t1, t2, t3, t4, t5 = st.tabs(["Executive Overview", "Behavioral DNA", "Strategic Action", "Risk Drives", "Pincode Drilldown"])
 
 with t1:
