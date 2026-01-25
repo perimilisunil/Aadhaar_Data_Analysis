@@ -390,11 +390,6 @@ Contributions are welcome! Please follow these guidelines:
 🔗 [LinkedIn](https://www.linkedin.com/in/perimili-sunil-kumar-bb22b3300?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app)  
 📧 [perimilisunil@gmail.com](mailto:perimilisunil@gmail.com)
 
-### Community Resources
--  [Report Issues](https://github.com/perimilisunil/Aadhaar_Data_Analysis/issues) - Bug reports and feature requests
--  [Discussions](https://github.com/perimilisunil/Aadhaar_Data_Analysis/discussions) - General questions and ideas
--  [Wiki](https://github.com/perimilisunil/Aadhaar_Data_Analysis/wiki) - Extended documentation
-
 ---
 
 
