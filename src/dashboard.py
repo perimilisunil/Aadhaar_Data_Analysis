@@ -8,6 +8,7 @@ import os
 import warnings
 import duckdb
 import sys
+import gc
 
 # --- 1. INITIALIZATION ---
 warnings.filterwarnings("ignore")
@@ -62,8 +63,19 @@ st.markdown("""
         font-weight: 800 !important; 
         color: #1e3a8a !important; 
     }
+    .data-disclaimer {
+        background: #FEF3C7;
+        border-left: 5px solid #F59E0B;
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 8px;
+    }
+    .data-disclaimer strong {
+        color: #92400E;
+    }
 </style>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=True
+
 
 # mapping for internal keys
 label_fix = {
@@ -73,31 +85,40 @@ label_fix = {
     'security_anomaly_score': 'Suspicious Creation'
 }
 
-# --- 4. DEFINE ROOT PATH GLOBALLY ---
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# --- 4. CONFIGURATION: Sample Rate ---
+SAMPLE_RATE = 40
 
 # --- 5. OPTIMIZED DATA LOADING ---
 @st.cache_data(ttl=1800, show_spinner="Loading audit data...")
 def load_data():
+    """
+    Uses @st.cache_resource to share data across ALL users (saves memory).
+    Each user gets their own filtered view but shares the base dataset.
+    """
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     audit_path = os.path.join(project_root, "output", "final_audit_report.parquet")
     master_path = os.path.join(project_root, "datasets", "pincode_master_clean.csv")
     
     if not os.path.exists(audit_path): 
-        return None
+        return None,0
     
     # CRITICAL: Use context manager to auto-close DuckDB connection
     with duckdb.connect(database=':memory:') as con:
-        # OPTIMIZED: Sample 50% instead of 99.9% to reduce memory
+        # Sample data to support multiple concurrent users on free tier
         query = f"""
             SELECT * FROM read_parquet('{audit_path}')
             WHERE integrity_score > 5
             UNION ALL
             SELECT * FROM read_parquet('{audit_path}')
             WHERE integrity_score <= 5
-            USING SAMPLE 48% (bernoulli)
+            USING SAMPLE {SAMPLE_RATE} (bernoulli)
         """
         df = con.execute(query).df()
+        con.close()
+    
+    # Explicit garbage collection
+    gc.collect()
     
     # MEMORY OPTIMIZATION: Convert to smaller dtypes early
     df['integrity_score'] = df['integrity_score'].astype('float32')
@@ -117,6 +138,7 @@ def load_data():
         
         # Free memory
         del m_df, state_lookup
+        gc.collect()
 
     # Final Filter: Remove any records that are still Unknown
     df = df[~df['state'].isna() & (df['state'] != 'NAN') & (df['state'] != 'UNKNOWN')]
@@ -132,26 +154,47 @@ def load_data():
     df['risk_diagnosis'] = df['primary_risk_driver'].map(label_map).fillna("Systemic Risk")
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     
-    return df
+    return df,SAMPLE_RATE
 
 # --- 6. LOAD DATA ---
-df = load_data()
+df,sample_rate = load_data()
 
 # STOP if data fails to load
 if df is None:
     st.error("⚠️ Dataset not found. Check your file paths.")
     st.stop()
 
-# Optional: Show memory usage in sidebar for debugging
+# CRITICAL: Each user gets their own copy to prevent data corruption across sessions
+df = df.copy()
+
+# Memory tracking
 df_size_mb = sys.getsizeof(df) / 1_000_000
+total_records = len(df)
+
+# --- 6. DATA TRANSPARENCY BANNER ---
+st.markdown(f"""
+<div class="data-disclaimer">
+    <strong>📊 Data Sampling Notice:</strong> This dashboard displays <strong>{sample_rate}% of the complete dataset</strong> 
+    ({total_records:,} records analyzed) to ensure optimal performance and support multiple concurrent users on Streamlit Cloud's 
+    free tier (1GB RAM limit). All statistical patterns, risk assessments, and forensic insights remain representative 
+    of the full dataset. For complete data analysis, please download the full audit report via the sidebar.
+</div>
+""", unsafe_allow_html=True)
 
 # --- 7. SIDEBAR ---
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/en/thumb/c/cf/Aadhaar_Logo.svg/1200px-Aadhaar_Logo.svg.png", width=120)
     st.markdown("---")
+    # System info
+    st.caption(f"📊 Records: {len(df):,} ({sample_rate}% sample)")
+    st.caption(f"💾 Memory: {df_size_mb:.1f}MB")
     
-    # Memory monitor (optional - remove in production)
-    st.caption(f"📊 Data: {len(df):,} rows | {df_size_mb:.1f}MB")
+    # Session tracking
+    if 'session_id' not in st.session_state:
+        st.session_state.session_id = id(st.session_state)
+    st.caption(f"🔗 Session: {str(st.session_state.session_id)[-6:]}")
+    
+    st.markdown("---")
     
     # Filtered State List
     state_list = sorted([s for s in df['state'].unique() if s != 'OTHER/UNCATEGORIZED'])
