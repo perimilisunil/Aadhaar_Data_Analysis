@@ -1,19 +1,20 @@
-#  Aadhaar Setu: National Integrity Audit & Forensic Intelligence Suite
+# 🛡️Aadhaar Setu: National Integrity Audit & Anomaly Detection Framework
 
-![Python](https://img.shields.io/badge/Python-3.12+-blue?logo=python&logoColor=white)
-![Backend](https://img.shields.io/badge/Backend-Streamlit-red?logo=streamlit&logoColor=white)
-![Analytics](https://img.shields.io/badge/Engine-DuckDB-black?logo=duckdb&logoColor=yellow)
-![ML](https://img.shields.io/badge/ML-Scikit--Learn-orange?logo=scikitlearn&logoColor=white)
-![Data](https://img.shields.io/badge/Data-Pandas-green?logo=pandas&logoColor=white)
-![Viz](https://img.shields.io/badge/Charts-Plotly-purple?logo=plotly&logoColor=white)
-![PDF](https://img.shields.io/badge/PDF-FPDF2-darkred)
+![Python](https://img.shields.io/badge/Python-3.12+-blue?logo=python&logoColor=white&style=for-the-badge)
+![Backend](https://img.shields.io/badge/Backend-Streamlit-red?logo=streamlit&logoColor=white&style=for-the-badge)
+![Engine](https://img.shields.io/badge/Engine-DuckDB-black?logo=duckdb&logoColor=yellow&style=for-the-badge)
+![ML](https://img.shields.io/badge/ML-Scikit--Learn-orange?logo=scikitlearn&logoColor=white&style=for-the-badge)
+![Data](https://img.shields.io/badge/Data-Pandas-green?logo=pandas&logoColor=white&style=for-the-badge)
+![Charts](https://img.shields.io/badge/Charts-Plotly-purple?logo=plotly&logoColor=white&style=for-the-badge)
+![PDF](https://img.shields.io/badge/PDF-FPDF2-darkred?style=for-the-badge)
+
 
 > **A production-grade forensic analytics engine for safeguarding Digital Public Infrastructure (DPI) at national scale.**
 
 Aadhaar Setu is an advanced data intelligence platform that processes millions of transactional records to identify administrative anomalies, diagnose behavioral fraud patterns, and deliver actionable intelligence for ground-level verification teams.
 
 
-## Live demo
+## 🚀 Live demo
 
 🔗 **Dashboard (Live):** [https://aadhaar-data-analysis-audit.streamlit.app](https://aadhaar-data-analysis-audit.streamlit.app)
 
@@ -23,7 +24,7 @@ Aadhaar Setu is an advanced data intelligence platform that processes millions o
 
 ---
 
-## Project Overview
+## 📖 Project Overview
 
 Aadhaar Setu is a national-scale analytics platform built to convert large volumes of administrative data into clear, actionable audit intelligence. It ingests raw transactional metadata, normalizes inconsistent geographic identifiers, derives operational metrics, and applies unsupervised machine learning to identify unusual or high-risk patterns across regions.
 
@@ -38,7 +39,7 @@ Key characteristics:
 
 ---
 
-##  Technology Stack
+## 💻 Technology Stack
 
 | Core Technologies | Component      | Purpose                                       |
 | ----------------- | -------------- | --------------------------------------------- |
@@ -50,7 +51,7 @@ Key characteristics:
 | PDF Engine        | FPDF2          | Custom AadhaarSetuPDF class for dossiers      |
 | Web Framework     | Streamlit      | Real-time dashboard with `@st.cache_resource` |
 
-#  The Three-Tier Architecture
+# 🎯 The Three-Tier Architecture
 
 ## 1. The Pincode Integrity Lock (PIL) Engine
 **Before analysis, the system runs a Geographic Self-Healing Engine.**  
@@ -162,7 +163,7 @@ pillow>=10.0.0
 
 ---
 
-##  Usage Guide
+## ✍️ Usage Guide
 
 **Dashboard Navigation**
 
@@ -281,7 +282,7 @@ with open('AadhaarSetu_Audit_Report.pdf', 'wb') as f:
 
 ---
 
-##  Project Structure
+## 📂 Project Structure
 
 ```
 Aadhaar_Data_Analysis/
