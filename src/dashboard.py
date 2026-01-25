@@ -88,7 +88,7 @@ label_fix = {
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # --- 5. CONFIGURATION: Sample Rate ---
-SAMPLE_RATE = 40  # Adjust this to balance performance vs data completeness
+SAMPLE_RATE = 45  # Adjust this to balance performance vs data completeness
 
 # --- 6. OPTIMIZED DATA LOADING (MULTI-USER SAFE) ---
 @st.cache_resource(ttl=1800, show_spinner="Loading audit data...")
