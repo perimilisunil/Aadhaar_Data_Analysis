@@ -274,12 +274,14 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
             table_data = [("PINCODE", "DISTRICT", "RISK %", "ML DIAGNOSIS", "REQUIRED ACTION")]
 
             for _, row in dist_all.iterrows():
+                diagnosis = row.get('risk_diagnosis', 'Systemic Anomaly')
+                action = action_directives.get(diagnosis, 'Baseline surveillance required.')
                 table_data.append((
                     safe_pincode(row['pincode']), 
                     str(row['district'])[:15],  # Shorten to prevent overlap
                     f"{row['integrity_risk_pct']:.1f}%", 
-                    str(row.get('risk_diagnosis', 'N/A'))[:20], 
-                    str(row.get('action_map', 'Review Required'))[:30] 
+                    diagnosis,
+                    action
                 ))
 
             with pdf.table(
