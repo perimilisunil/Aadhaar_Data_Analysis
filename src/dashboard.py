@@ -87,7 +87,7 @@ label_fix = {
 
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # --- 4. CONFIGURATION: Sample Rate ---
-SAMPLE_RATE = 40
+sample_rate = 40
 
 # --- 5. OPTIMIZED DATA LOADING ---
 @st.cache_data(ttl=1800, show_spinner="Loading audit data...")
@@ -112,7 +112,7 @@ def load_data():
             UNION ALL
             SELECT * FROM read_parquet('{audit_path}')
             WHERE integrity_score <= 5
-            USING SAMPLE {SAMPLE_RATE} (bernoulli)
+            USING SAMPLE {sample_rate} (bernoulli)
         """
         df = con.execute(query).df()
         con.close()
@@ -154,14 +154,14 @@ def load_data():
     df['risk_diagnosis'] = df['primary_risk_driver'].map(label_map).fillna("Systemic Risk")
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     
-    return df,SAMPLE_RATE
+    return df,sample_rate
 
 # --- 6. LOAD DATA ---
 df,sample_rate = load_data()
 
 # STOP if data fails to load
 if df is None:
-    st.error("⚠️ Dataset not found. Check your file paths.")
+    st.error("Dataset not found. Check your file paths.")
     st.stop()
 
 # CRITICAL: Each user gets their own copy to prevent data corruption across sessions
@@ -174,7 +174,7 @@ total_records = len(df)
 # --- 6. DATA TRANSPARENCY BANNER ---
 st.markdown(f"""
 <div class="data-disclaimer">
-    <strong>📊 Data Sampling Notice:</strong> This dashboard displays <strong>{sample_rate}% of the complete dataset</strong> 
+    <strong>Data Sampling Notice:</strong> This dashboard displays <strong>{sample_rate}% of the complete dataset</strong> 
     ({total_records:,} records analyzed) to ensure optimal performance and support multiple concurrent users on Streamlit Cloud's 
     free tier (1GB RAM limit). All statistical patterns, risk assessments, and forensic insights remain representative 
     of the full dataset. For complete data analysis, please download the full audit report via the sidebar.
@@ -186,8 +186,8 @@ with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/en/thumb/c/cf/Aadhaar_Logo.svg/1200px-Aadhaar_Logo.svg.png", width=120)
     st.markdown("---")
     # System info
-    st.caption(f"📊 Records: {len(df):,} ({sample_rate}% sample)")
-    st.caption(f"💾 Memory: {df_size_mb:.1f}MB")
+    st.caption(f"Records: {len(df):,} ({sample_rate}% sample)")
+    st.caption(f" Memory: {df_size_mb:.1f}MB")
     
     # Session tracking
     if 'session_id' not in st.session_state:
