@@ -362,12 +362,11 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None,team_id
         pdf.ln(10)
                 
         # Create the clickable link
-        pdf.set_text_color(0, 0, 255)  # Set color to blue for standard link look
+        pdf.write(9,"Technical provenance and full source code repository: ")
+        pdf.set_text_color(0, 0, 255)
         pdf.set_font("helvetica", "U", 10)  # Add 'U' for underline
-        repo_url = "https://github.com/perimilisunil/Aadhaar_Data_Analysis"
-        # The 'link' parameter makes it clickable
-        pdf.cell(0, 10, f"Technical provenance and full source code repository: {repo_url}", 0, 1, 'C', link=repo_url)
-        
+        pdf.write(9,"Github Link","https://github.com/perimilisunil/Aadhaar_Data_Analysis"
+        # The 'link' parameter makes it clickable        
         # --- SOURCE CODE (OPTIMIZED) ---
         # OPTIMIZATION: Only include dashboard.py to save memory
         code_files = [("cleaner.py", "ETL Engine"), ("ml_deep_analysis.py", "Risk Engine "), ("dashboard.py", "Interface controller")]
