@@ -75,7 +75,7 @@ We developed the RSI (0–10 score). This metric balances enrollment spikes agai
 
 ---
 
-## System Architecture
+## 🏗️ System Architecture
 
 ```
                         ┌────────────────────────────────────────────────────────────┐
@@ -111,7 +111,7 @@ We developed the RSI (0–10 score). This metric balances enrollment spikes agai
 ---
 
 
-##  Installation & Setup
+## 📐 Installation & Setup
 
 **Prerequisites**
 
@@ -237,7 +237,7 @@ with open('AadhaarSetu_Audit_Report.pdf', 'wb') as f:
 
 ---
 
-##  Key Features
+## 🛎️ Key Features
 
 ###  Data Intelligence
 
@@ -271,7 +271,7 @@ with open('AadhaarSetu_Audit_Report.pdf', 'wb') as f:
 
 ---
 
-##  Privacy & Compliance
+## 🔏 Privacy & Compliance
 
 **Data Protection Principles**
 
@@ -309,7 +309,7 @@ Aadhaar_Data_Analysis/
 
 ---
 
-##  Performance Benchmarks
+## 🛞 Performance Benchmarks
 
 **System Metrics (Streamlit Cloud - Free Tier)**
 
@@ -354,7 +354,7 @@ Aadhaar_Data_Analysis/
 
 ---
 
-##  Contributing
+## 🧳Contributing
 
 Contributions are welcome! Please follow these guidelines:
 
@@ -365,21 +365,9 @@ Contributions are welcome! Please follow these guidelines:
 5. Open a Pull Request.
 
 ---
-
-##  License
-
-This project is licensed under the MIT License - see the `LICENSE` file for details.
-
-**Third-Party Licenses:**
-
-* Streamlit: Apache 2.0
-* Plotly: MIT
-* Scikit-Learn: BSD 3-Clause
-* FPDF2: LGPL 3.0
-
 ---
 
-##  Acknowledgments
+## 📃 Acknowledgments
 
 **Built For:** National Aadhaar Hackathon 2026
 
@@ -394,7 +382,7 @@ This project is licensed under the MIT License - see the `LICENSE` file for deta
 
 
 ---
-##  Contact & Support
+## 📥 Contact & Support
 
 ### Project Maintainer
 **Sunil Kumar**  
