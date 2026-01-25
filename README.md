@@ -394,7 +394,6 @@ Contributions are welcome! Please follow these guidelines:
 -  [Report Issues](https://github.com/perimilisunil/Aadhaar_Data_Analysis/issues) - Bug reports and feature requests
 -  [Discussions](https://github.com/perimilisunil/Aadhaar_Data_Analysis/discussions) - General questions and ideas
 -  [Wiki](https://github.com/perimilisunil/Aadhaar_Data_Analysis/wiki) - Extended documentation
--  [Star this repo](https://github.com/perimilisunil/Aadhaar_Data_Analysis) if you find it useful!
 
 ---
 
