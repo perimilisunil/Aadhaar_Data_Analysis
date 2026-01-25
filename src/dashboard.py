@@ -171,16 +171,6 @@ df = df.copy()
 df_size_mb = sys.getsizeof(df) / 1_000_000
 total_records = len(df)
 
-# --- 8. DATA TRANSPARENCY BANNER ---
-st.markdown(f"""
-<div class="data-disclaimer">
-    <strong>Data Sampling Notice:</strong> This dashboard displays <strong>{sample_rate}% of the complete dataset</strong> 
-    ({total_records:,} records analyzed) to ensure optimal performance and support multiple concurrent users on Streamlit Cloud's 
-    free tier (1GB RAM limit). All statistical patterns, risk assessments, and forensic insights remain representative 
-    of the full dataset. For complete data analysis, please download the full audit report via the sidebar.
-</div>
-""", unsafe_allow_html=True)
-
 # --- 9. SIDEBAR ---
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/en/thumb/c/cf/Aadhaar_Logo.svg/1200px-Aadhaar_Logo.svg.png", width=120)
@@ -319,7 +309,7 @@ with st.sidebar:
 # --- 8. MAIN DASHBOARD ---
 st.markdown('<p class="main-title">Aadhaar National Integrity Dashboard</p>', unsafe_allow_html=True)
 
-# --- 6-KPI COMMAND ROW ---
+# --- 9-KPI COMMAND ROW ---
 k1, k2, k3, k4, k5, k6 = st.columns(6)
 with k1: 
     st.metric("Audit Scope", sel_state if sel_state != "NATIONAL OVERVIEW" else "INDIA")
@@ -335,6 +325,15 @@ with k6:
     st.metric("Records Analyzed", f"{len(view_df):,}") 
 
 st.markdown("---")
+# --- 10. DATA TRANSPARENCY BANNER ---
+st.markdown(f"""
+<div class="data-disclaimer">
+    <strong>Data Sampling Notice:</strong> This dashboard displays <strong>{sample_rate}% of the complete dataset</strong> 
+    ({total_records:,} records analyzed) to ensure optimal performance and support multiple concurrent users on Streamlit Cloud's 
+    free tier (1GB RAM limit). All statistical patterns, risk assessments, and forensic insights remain representative 
+    of the full dataset. For complete data analysis, please download the full audit report via the sidebar.
+</div>
+""", unsafe_allow_html=True)
 
 # --- 10. TABS ---
 t1, t2, t3, t4, t5 = st.tabs(["Executive Overview", "Behavioral DNA", "Strategic Action", "Risk Drives", "Pincode Drilldown"])
