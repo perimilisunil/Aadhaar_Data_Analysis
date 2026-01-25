@@ -235,9 +235,7 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
         pdf.set_y(160)
         pdf.set_font('Helvetica','',12)
         pdf.multi_cell(180, 8, clean_text(
-            "The Dashboard screenshot verifies the system's live command interface. "
-            "It demonstrates the recalculation of KPIs for the full record cache. "
-            "Administrators can filter by forensic profile to see the national map update instantly."
+            "The dashboard confirms the system is live and tracking over 2.2 million records. It displays key metrics, including a 92.4% integrity score and 13,969 high-risk sites that need attention. Administrators can use the sidebar to filter data. The main charts clearly identify states with the most suspicious activity, specifically highlighting states like MAHARASHTRA and ASSAM . It also ranks the primary causes of these risks using machine learning categories. The interface updates instantly to show how these risks affect different regions. This tool effectively turns complex data into a clear action plan for field operations."
         ))
         pdf.add_page();
         pdf.set_font('Helvetica', '', 20);
@@ -246,7 +244,7 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
         if os.path.exists(st_img2): pdf.image(ensure_image_size(st_img2), x=30, w=180)
         pdf.set_y(160);
         pdf.set_font('Helvetica','',12)
-        pdf.multi_cell(180, 8, clean_text("The state-level heatmap identifies localized DNA signatures. A dark red cell indicates a high-priority administrative anomaly. This visual provides regional managers with the Ground Reality needed to optimize field routes effectively."))
+        pdf.multi_cell(180, 8, clean_text("The Regional Integrity Hierarchy visualization functions as a heat map for state-level surveillance, specifically isolating high-variance districts within Uttar Pradesh. By utilizing a divergent color scale representing Relative Risk %, the heatmap immediately distinguishes compliant zones from critical administrative anomalies; notably, districts such as Sitapur, Bareilly, and Shahjahanpur are rendered in deep crimson, indicating risk saturation levels approaching the 20% upper threshold. Conversely, regions like Ayodhya and Lucknow appear in low-risk gradients, establishing a clear baseline for comparative analysis. This spatial data is corroborated by the "Administrative Pulse" temporal graph below, which tracks the intersection of MBU Compliance Efficiency—peaking in September 2025—against fluctuating Risk Intensity trends. This dual-layer visibility empowers regional managers to bypass low-priority areas and dynamically re-route field audit teams directly to the "Red Zone" hotspots identified in the treemap, optimizing the deployment of limited ground assets."))
         # --- INNOVATION CASE STUDY ---
         pdf.add_page()
         pdf.set_font('Helvetica', 'B', 20)
@@ -261,7 +259,7 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
         
         if sample is not None and 'district' in macro_df.columns:
             safe_h = macro_df[macro_df['district'] == sample['district']].sort_values('integrity_risk_pct').iloc[0]
-            
+            pdf.set_font('Helvetica', '', 12)
             pdf.multi_cell(180, 8, clean_text(
                 f"Innovation: When PIN {safe_pincode(sample['pincode'])} is flagged, "
                 f"the engine reroutes citizens to PIN {safe_pincode(safe_h['pincode'])} (Verified Center). "
@@ -273,20 +271,22 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
             dist_all = macro_df[macro_df['district'] == sample['district']].sort_values(
                 'integrity_risk_pct', ascending=False
             ).head(8)
-            
             table_data = [("PINCODE", "DISTRICT", "RISK %", "ML DIAGNOSIS", "REQUIRED ACTION")]
+
             for _, row in dist_all.iterrows():
+                diagnosis = row.get('risk_diagnosis', 'Systemic Anomaly')
+                action = action_directives.get(diagnosis, 'Baseline surveillance required.')
                 table_data.append((
                     safe_pincode(row['pincode']), 
-                    str(row['district'])[:20],  # Truncate long names
+                    str(row['district'])[:15],  # Shorten to prevent overlap
                     f"{row['integrity_risk_pct']:.1f}%", 
-                    str(row.get('risk_diagnosis', 'N/A'))[:25],  # Truncate
-                    str(row.get('action_map'))
+                    diagnosis,
+                    action 
                 ))
 
             with pdf.table(
                 borders_layout="SINGLE_TOP_LINE", 
-                cell_fill_color=THEME["background"], 
+                cell_fill_color=(248, 250, 252), 
                 cell_fill_mode="ROWS", 
                 line_height=8, 
                 width=190
@@ -311,13 +311,37 @@ def generate_forensic_dossier(df, state_name, root_path, search_pin=None, team_i
         pdf.set_font('Helvetica', 'B', 20)
         pdf.cell(0, 15, "17. Compliance and Ethics", 0, 1)
         pdf.set_font('Helvetica', '', 12)
+                # Set the common width and alignment
+        pdf.set_x(15) 
+        
+        # 1. Print the first three lines as a regular multi_cell
         pdf.multi_cell(180, 9, 
             "Privacy: No direct identifiers (Names, DOB) were processed.\n"
-            "Logic: Unsupervised ML removes demographic bias.\n"
-            "Maintenance: commits to one-year support.\n"
-            "Provenance: Official UIDAI datasets.")
-        pdf.cell(0, 10, "Technical provenance and full source code repository: github.com/perimilisunil/Aadhaar_Data_Analysis",0,1,'C')
-
+            "Logic: Unsupervised Machine Learning Algorithms.\n"
+            "Maintenance: Commits to one-year support.", 
+            border=0, align='L')
+        
+        # 2. Print the first part of the last line
+        pdf.set_x(15)
+        pdf.write(9, "Provenance: Official UIDAI datasets. Provided by ")
+        
+        # 3. Print the clickable link in Blue/Underlined
+        pdf.set_text_color(0, 0, 255)
+        pdf.set_font("helvetica", "U", 10)
+        pdf.write(9, "data.gov.in", "https://data.gov.in")
+        
+        # 4. Reset font to normal for whatever comes next
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_font("helvetica", "", 10)
+        pdf.ln(10)
+                
+        # Create the clickable link
+        pdf.set_text_color(0, 0, 255)  # Set color to blue for standard link look
+        pdf.set_font("helvetica", "U", 10)  # Add 'U' for underline
+        repo_url = "https://github.com/perimilisunil/Aadhaar_Data_Analysis"
+        # The 'link' parameter makes it clickable
+        pdf.cell(0, 10, f"Technical provenance and full source code repository: {repo_url}", 0, 1, 'C', link=repo_url)
+        
         # --- SOURCE CODE (OPTIMIZED) ---
         # OPTIMIZATION: Only include dashboard.py to save memory
         code_files = [("cleaner.py", "ETL Engine"), ("ml_deep_analysis.py", "Risk Engine "), ("dashboard.py", "Interface controller")]
