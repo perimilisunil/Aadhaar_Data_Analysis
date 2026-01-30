@@ -9,7 +9,7 @@
 ![PDF](https://img.shields.io/badge/PDF-FPDF2-darkred?style=for-the-badge)
 
 
-> **A production-grade forensic analytics engine for safeguarding Digital Public Infrastructure (DPI) at national scale.**
+> **A production-grade  analytics engine for safeguarding Digital Public Infrastructure (DPI) at national scale.**
 
 Aadhaar Setu is an advanced data intelligence platform that processes millions of transactional records to identify administrative anomalies, diagnose behavioral fraud patterns, and deliver actionable intelligence for ground-level verification teams.
 
@@ -21,6 +21,7 @@ Aadhaar Setu is an advanced data intelligence platform that processes millions o
 > **NOTE:** The dashboard is hosted on Streamlit's free tier and may occasionally crash or run out of memory.
 > If the site is down, please email `perimilisunil@gmail.com` and I will restart the app and ensure it runs as expected.
 > For better experience switch to **LIGHT MODE**
+> **DEVELOPED FOR UIDAI AADHAAR HACKATHON 2026**
 
 ---
 
